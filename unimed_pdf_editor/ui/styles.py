@@ -28,10 +28,12 @@ STYLESHEET = f"""
         padding: 10px 20px;
         border-radius: 4px;
         font-weight: bold;
+        transition: all 0.2s ease;
     }}
 
     QPushButton:hover {{
         background-color: #007A30;
+        transition: all 0.2s ease;
     }}
 
     QPushButton:pressed {{
@@ -66,6 +68,7 @@ STYLESHEET = f"""
     QLabel#ThumbnailLabel {{
         border: 1px solid #DDDDDD;
         background-color: white;
+        transition: all 0.2s ease;
     }}
 
     QLabel#ThumbnailLabel[selected="true"] {{

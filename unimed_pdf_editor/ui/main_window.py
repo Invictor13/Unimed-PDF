@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QFrame, QSplitter
+from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QFrame, QSplitter, QFileDialog, QMessageBox
 from PyQt6.QtCore import Qt
 from .styles import STYLESHEET
 from .left_panel import LeftPanel
