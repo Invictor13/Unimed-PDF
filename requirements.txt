@@ -1,0 +1,6 @@
+PyQt6
+PyMuPDF
+pypdf
+Pillow
+pytesseract
+reportlab
