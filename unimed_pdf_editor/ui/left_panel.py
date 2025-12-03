@@ -1,7 +1,9 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QFileDialog, QFrame, QMessageBox, QInputDialog
 )
+from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import pyqtSignal, Qt
+import os
 
 class LeftPanel(QFrame):
     action_triggered = pyqtSignal(str, object)
@@ -17,10 +19,20 @@ class LeftPanel(QFrame):
         layout.setContentsMargins(20, 20, 20, 20)
 
         # Title / Branding
-        title = QLabel("Editor PDF\nUnimed")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #009A3E; margin-bottom: 20px;")
-        layout.addWidget(title)
+        logo_label = QLabel()
+        logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Load logo
+        logo_path = os.path.join("assets", "logo.png")
+        if os.path.exists(logo_path):
+             pixmap = QPixmap(logo_path)
+             if not pixmap.isNull():
+                 # Scale if necessary, but assuming logo is sized appropriate or we limit it
+                 logo_label.setPixmap(pixmap.scaled(200, 100, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+
+        # Fallback if no logo? Or just empty.
+        layout.addWidget(logo_label)
+        layout.addSpacing(20)
 
         # File Operations
         btn_load = QPushButton("Carregar PDF(s)")

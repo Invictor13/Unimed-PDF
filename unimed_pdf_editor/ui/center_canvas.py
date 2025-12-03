@@ -102,14 +102,55 @@ class CenterCanvas(QWidget):
     def refresh_thumbnails(self):
         # Clear existing
         for i in reversed(range(self.grid_layout.count())):
-            self.grid_layout.itemAt(i).widget().setParent(None)
+            item = self.grid_layout.itemAt(i)
+            if item.widget():
+                item.widget().setParent(None)
         self.thumbnails = []
         self.selected_indices.clear()
 
         count = self.main_window.pdf_manager.get_page_count()
         columns = 3 # Adjust based on width? Or fixed for now.
 
+        if count == 0:
+            empty_label = QLabel("Carregue um PDF para começar a editar.")
+            empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            empty_label.setStyleSheet("font-size: 18px; color: #666666;")
+            self.grid_layout.addWidget(empty_label, 0, 0, 1, columns)
+            # Make sure it's centered in the scroll area conceptually?
+            # With align top/left, it might be at top.
+            # But this is inside scroll area.
+            self.container.set_thumbnails([])
+            return
+
+        current_file_id = None
+        row = 0
+        col = 0
+
         for i in range(count):
+            page_info = self.main_window.pdf_manager.get_page_info(i)
+            file_id = page_info['file_id']
+            file_name = page_info['file_name']
+
+            if file_id != current_file_id:
+                # Start new section
+                if col > 0:
+                    row += 1
+                    col = 0
+
+                # Add Header Separator
+                # Create a container for the header style
+                header_label = QLabel(f"  {file_name}")
+                header_label.setStyleSheet("""
+                    background-color: #009A3E;
+                    color: white;
+                    font-weight: bold;
+                    padding: 5px;
+                    border-radius: 4px;
+                """)
+                self.grid_layout.addWidget(header_label, row, 0, 1, columns)
+                row += 1
+                current_file_id = file_id
+
             img_data = self.main_window.pdf_manager.get_thumbnail(i)
             thumb = Thumbnail(i, img_data)
             thumb.clicked.connect(self.on_thumbnail_clicked)
@@ -117,10 +158,13 @@ class CenterCanvas(QWidget):
             thumb.hover_entered.connect(self.on_thumbnail_hover)
             thumb.hover_left.connect(self.on_thumbnail_leave)
 
-            row = i // columns
-            col = i % columns
             self.grid_layout.addWidget(thumb, row, col)
             self.thumbnails.append(thumb)
+
+            col += 1
+            if col >= columns:
+                col = 0
+                row += 1
 
         # Update container's thumbnail reference
         self.container.set_thumbnails(self.thumbnails)
