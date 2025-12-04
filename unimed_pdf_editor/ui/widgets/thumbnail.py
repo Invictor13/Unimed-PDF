@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget, QApplication
+from PyQt6.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QWidget, QApplication
 from PyQt6.QtCore import Qt, pyqtSignal, QMimeData, QPoint
 from PyQt6.QtGui import QPixmap, QImage, QDrag
 
@@ -30,9 +30,23 @@ class Thumbnail(QWidget):
 
         layout.addWidget(self.image_label)
 
+        # Bottom Layout for Number and Drag Handle
+        bottom_layout = QHBoxLayout()
+        bottom_layout.setContentsMargins(0, 0, 0, 0)
+
         self.number_label = QLabel(str(index + 1))
-        self.number_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.number_label)
+        self.number_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+
+        self.drag_handle = QLabel("⠿")
+        self.drag_handle.setStyleSheet("color: #999999; font-size: 16px; cursor: size_all;")
+        self.drag_handle.setVisible(False) # Show on hover
+
+        bottom_layout.addStretch()
+        bottom_layout.addWidget(self.number_label)
+        bottom_layout.addWidget(self.drag_handle)
+        bottom_layout.addStretch()
+
+        layout.addLayout(bottom_layout)
 
         self.setProperty("selected", False)
 
@@ -75,10 +89,12 @@ class Thumbnail(QWidget):
         self.double_clicked.emit(self.index)
 
     def enterEvent(self, event):
+        self.drag_handle.setVisible(True)
         # Emit global pos for the tooltip to position itself
         # We use a slight offset to avoid covering the cursor immediately
         # Using QPoint(self.width(), 0) places it to the right
         self.hover_entered.emit(self.index, self.mapToGlobal(QPoint(self.width(), 0)))
 
     def leaveEvent(self, event):
+        self.drag_handle.setVisible(False)
         self.hover_left.emit(self.index)

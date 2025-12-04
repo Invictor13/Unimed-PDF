@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (
-    QWidget, QScrollArea, QGridLayout, QApplication, QLabel
+    QWidget, QScrollArea, QGridLayout, QVBoxLayout, QApplication, QLabel
 )
 from PyQt6.QtCore import pyqtSignal, Qt, QMimeData, QPoint
 from PyQt6.QtGui import QDrag, QPixmap, QImage
@@ -112,18 +112,31 @@ class CenterCanvas(QWidget):
         columns = 3 # Adjust based on width? Or fixed for now.
 
         if count == 0:
-            empty_text = (
-                "1. Clique em 'Carregar PDF(s)' acima.\n"
-                "2. Arraste as páginas para reordenar.\n"
-                "3. Use a Lateral Esquerda para ações."
-            )
-            empty_label = QLabel(empty_text)
-            empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            empty_label.setStyleSheet("font-size: 18px; color: #666666; font-weight: bold;")
-            self.grid_layout.addWidget(empty_label, 0, 0, 1, columns)
-            # Make sure it's centered in the scroll area conceptually?
-            # With align top/left, it might be at top.
-            # But this is inside scroll area.
+            # Empty State with Branding
+            empty_widget = QWidget()
+            empty_layout = QVBoxLayout(empty_widget)
+            empty_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            # Logo (Optional, or just text)
+            # If we had a logo asset, we'd use it. For now, styled text.
+            logo_label = QLabel("Unimed")
+            logo_label.setStyleSheet("font-size: 48px; font-weight: bold; color: #009A3E; margin-bottom: 20px;")
+            logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            empty_layout.addWidget(logo_label)
+
+            msg_label = QLabel("Aguardando PDF's")
+            msg_label.setStyleSheet("font-size: 24px; color: #333333; font-weight: bold;")
+            msg_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            empty_layout.addWidget(msg_label)
+
+            sub_label = QLabel("Clique em 'Carregar' ou arraste arquivos aqui.")
+            sub_label.setStyleSheet("font-size: 16px; color: #666666; margin-top: 10px;")
+            sub_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            empty_layout.addWidget(sub_label)
+
+            # Center in grid
+            self.grid_layout.addWidget(empty_widget, 0, 0, 1, columns)
+
             self.container.set_thumbnails([])
             return
 
