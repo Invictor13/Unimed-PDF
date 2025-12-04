@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QFrame, QSplitter, QFileDialog, QMessageBox
+from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QFrame, QSplitter, QFileDialog, QMessageBox, QProgressDialog, QApplication
 from PyQt6.QtCore import Qt
 from .styles import STYLESHEET
 from .left_panel import LeftPanel
@@ -73,6 +73,10 @@ class MainWindow(QMainWindow):
             self.run_ocr()
         elif action_name == "select_pages":
             self.select_pages_from_input(data)
+        elif action_name == "clear_session":
+            self.clear_session()
+        elif action_name == "rotate_selected":
+            self.rotate_selected_pages()
 
     def select_pages_from_input(self, indices):
         # Update selection in Canvas
@@ -115,6 +119,47 @@ class MainWindow(QMainWindow):
         # Rotate, Delete from viewer
         pass
 
+    def show_loading(self, message="Processando..."):
+        """Displays a simple modal loading dialog."""
+        self.loading_dialog = QProgressDialog(message, None, 0, 0, self)
+        self.loading_dialog.setWindowTitle("Aguarde")
+        self.loading_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+        self.loading_dialog.setCancelButton(None)
+        self.loading_dialog.setMinimumDuration(0)
+        self.loading_dialog.show()
+        QApplication.processEvents() # Force UI update
+
+    def hide_loading(self):
+        """Hides the loading dialog."""
+        if hasattr(self, 'loading_dialog') and self.loading_dialog:
+            self.loading_dialog.close()
+            self.loading_dialog = None
+
+    def clear_session(self):
+        confirm = QMessageBox.question(self, "Confirmar",
+                                       "Tem certeza que deseja limpar a sessão? Todas as alterações não salvas serão perdidas.",
+                                       QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if confirm == QMessageBox.StandardButton.Yes:
+            self.pdf_manager.clear_session()
+            self.center_canvas.refresh_thumbnails()
+            if hasattr(self.right_viewer, 'clear'):
+                self.right_viewer.clear() # Assuming right_viewer has a clear method or handles loading empty page
+
+    def rotate_selected_pages(self):
+        indices = self.center_canvas.get_selected_indices()
+        if not indices:
+             QMessageBox.warning(self, "Atenção", "Selecione as páginas para rotacionar.")
+             return
+
+        self.show_loading("Rotacionando páginas...")
+        try:
+            for idx in indices:
+                self.pdf_manager.rotate_page(idx, 90)
+
+            self.center_canvas.refresh_thumbnails()
+        finally:
+            self.hide_loading()
+
     def merge_pdfs(self):
         # The current design loads multiple PDFs and merges them in memory via PDFManager's logic
         # if we had implemented "append" logic.
@@ -124,8 +169,12 @@ class MainWindow(QMainWindow):
 
         output_path, _ = QFileDialog.getSaveFileName(self, "Salvar PDF Unificado", "unificado.pdf", "PDF Files (*.pdf)")
         if output_path:
-            self.pdf_manager.save_pdf(output_path)
-            QMessageBox.information(self, "Sucesso", "PDF unificado salvo com sucesso!")
+            self.show_loading("Unificando PDF...")
+            try:
+                self.pdf_manager.save_pdf(output_path)
+                QMessageBox.information(self, "Sucesso", "PDF unificado salvo com sucesso!")
+            finally:
+                self.hide_loading()
 
     def split_pdf(self):
         indices = self.center_canvas.get_selected_indices()
@@ -135,14 +184,22 @@ class MainWindow(QMainWindow):
 
         output_path, _ = QFileDialog.getSaveFileName(self, "Salvar PDF Separado", "separado.pdf", "PDF Files (*.pdf)")
         if output_path:
-            self.pdf_manager.split_pdf(indices, output_path)
-            QMessageBox.information(self, "Sucesso", "PDF separado salvo com sucesso!")
+            self.show_loading("Separando PDF...")
+            try:
+                self.pdf_manager.split_pdf(indices, output_path)
+                QMessageBox.information(self, "Sucesso", "PDF separado salvo com sucesso!")
+            finally:
+                self.hide_loading()
 
     def compress_pdf(self, level):
         output_path, _ = QFileDialog.getSaveFileName(self, "Salvar PDF Compactado", "compactado.pdf", "PDF Files (*.pdf)")
         if output_path:
-            self.pdf_manager.compress_pdf(output_path, level)
-            QMessageBox.information(self, "Sucesso", f"PDF compactado ({level}) salvo com sucesso!")
+            self.show_loading(f"Compactando PDF (Nível: {level})...")
+            try:
+                self.pdf_manager.compress_pdf(output_path, level)
+                QMessageBox.information(self, "Sucesso", f"PDF compactado ({level}) salvo com sucesso!")
+            finally:
+                self.hide_loading()
 
     def delete_selected_pages(self):
         indices = self.center_canvas.get_selected_indices()
@@ -161,14 +218,21 @@ class MainWindow(QMainWindow):
 
         # Warning: This can take time. Should run in thread.
         # For MVP we run blocking or show a message.
-        QMessageBox.information(self, "OCR", "Iniciando OCR. Isso pode demorar alguns instantes.")
+        # QMessageBox.information(self, "OCR", "Iniciando OCR. Isso pode demorar alguns instantes.")
 
         from ..core.ocr_engine import OCREngine
         ocr = OCREngine()
 
         output_path, _ = QFileDialog.getSaveFileName(self, "Salvar PDF Pesquisável", "ocr.pdf", "PDF Files (*.pdf)")
         if output_path:
-            success, msg = ocr.make_searchable(self.pdf_manager.filepath, output_path)
+            self.show_loading("Executando OCR...")
+            success = False
+            msg = ""
+            try:
+                success, msg = ocr.make_searchable(self.pdf_manager.filepath, output_path)
+            finally:
+                self.hide_loading()
+
             if success:
                  QMessageBox.information(self, "Sucesso", msg)
             else:

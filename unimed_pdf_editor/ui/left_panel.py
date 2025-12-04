@@ -63,7 +63,16 @@ class LeftPanel(QFrame):
         btn_ocr.clicked.connect(lambda: self.action_triggered.emit("ocr", None))
         layout.addWidget(btn_ocr)
 
+        # New QoL Buttons
+        btn_rotate = QPushButton("Rotacionar Selecionadas (90°)")
+        btn_rotate.clicked.connect(lambda: self.action_triggered.emit("rotate_selected", None))
+        layout.addWidget(btn_rotate)
+
         layout.addStretch()
+
+        btn_clear = QPushButton("Limpar Sessão")
+        btn_clear.clicked.connect(lambda: self.action_triggered.emit("clear_session", None))
+        layout.addWidget(btn_clear)
 
         btn_delete = QPushButton("Excluir Páginas")
         btn_delete.setObjectName("DeleteButton")
