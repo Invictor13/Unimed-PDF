@@ -134,6 +134,7 @@ class PDFManager:
 
         # For high compression, attempt to downsample images
         if level == "high":
+            processed_xrefs = set()
             try:
                 # Iterate over all pages
                 for page_num in range(len(subset_doc)):
@@ -143,27 +144,61 @@ class PDFManager:
                     for img in image_list:
                         xref = img[0]
                         # Skip if already processed or invalid
-                        if xref <= 0:
+                        if xref <= 0 or xref in processed_xrefs:
                             continue
+
+                        processed_xrefs.add(xref)
 
                         try:
                             pix = fitz.Pixmap(subset_doc, xref)
-                            # Downsample if width or height > 1500
-                            if pix.width > 1500 or pix.height > 1500:
-                                # Check colorspace, convert to RGB if necessary (e.g. CMYK)
-                                if pix.n - pix.alpha > 3:
-                                    pix = fitz.Pixmap(fitz.csRGB, pix)
+
+                            # Check colorspace, convert to RGB if necessary (e.g. CMYK) to allow JPEG conversion
+                            if pix.n - pix.alpha > 3:
+                                pix = fitz.Pixmap(fitz.csRGB, pix)
+
+                            # Target DPI logic: approx 150 DPI
+                            # Assuming standard A4 (approx 600x840 points), 150 DPI is approx 1240x1754 pixels
+                            # We set a max dimension safe limit of 1500px to ensure reduction
+                            max_dim = 1500
+
+                            if pix.width > max_dim or pix.height > max_dim:
+                                scale = max_dim / max(pix.width, pix.height)
+                                new_width = int(pix.width * scale)
+                                new_height = int(pix.height * scale)
 
                                 # Downsample logic: resize
-                                new_pix = fitz.Pixmap(pix, pix.width // 2, pix.height // 2)
+                                new_pix = fitz.Pixmap(pix, new_width, new_height)
 
-                                # Convert to JPEG stream with lower quality for compression
-                                stream = new_pix.tobytes("jpeg", jpg_quality=50)
+                                # Convert to JPEG stream with high compression
+                                stream = new_pix.tobytes("jpeg", jpg_quality=30)
 
-                                # Update the object stream
+                                # Update the object stream and essential dictionary keys
                                 subset_doc.update_stream(xref, stream)
+
+                                # Update metadata to reflect new dimensions and JPEG encoding
+                                subset_doc.xref_set_key(xref, "Width", new_width)
+                                subset_doc.xref_set_key(xref, "Height", new_height)
+                                subset_doc.xref_set_key(xref, "Filter", "/DCTDecode")
+                                subset_doc.xref_set_key(xref, "ColorSpace", "/DeviceRGB")
+                                subset_doc.xref_set_key(xref, "BitsPerComponent", 8)
+
                                 new_pix = None
-                                pix = None
+                            else:
+                                # Even if small, force JPEG compression if not already optimized
+                                # This helps if the original was PNG or raw
+                                stream = pix.tobytes("jpeg", jpg_quality=40)
+                                subset_doc.update_stream(xref, stream)
+
+                                # Ensure Filter is set to DCTDecode for JPEG
+                                subset_doc.xref_set_key(xref, "Filter", "/DCTDecode")
+                                # We might need to update ColorSpace if we converted, but if we didn't resize/convert
+                                # and it was already a pixmap, pix.n tells us.
+                                # Safe to assume RGB if we force jpeg? Not necessarily, grayscale is possible.
+                                # But for safety/simplicity in this MVP:
+                                if pix.n >= 3:
+                                    subset_doc.xref_set_key(xref, "ColorSpace", "/DeviceRGB")
+
+                            pix = None
                         except Exception:
                             # If anything fails for an image, skip it and continue
                             continue

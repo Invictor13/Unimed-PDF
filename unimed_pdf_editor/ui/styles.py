@@ -28,16 +28,21 @@ STYLESHEET = f"""
         padding: 10px 20px;
         border-radius: 4px;
         font-weight: bold;
-        transition: all 0.2s ease;
+        border-bottom: 3px solid #007A30;
     }}
 
     QPushButton:hover {{
         background-color: #007A30;
-        transition: all 0.2s ease;
+        border-bottom: 5px solid #005F25;
+        margin-top: -2px;
+        margin-bottom: 2px;
     }}
 
     QPushButton:pressed {{
         background-color: #005F25;
+        border-bottom: 0px solid transparent;
+        margin-top: 3px;
+        margin-bottom: 0px;
     }}
 
     QPushButton#DeleteButton {{
