@@ -36,13 +36,26 @@ class RightViewer(QFrame):
         btn_rotate = QPushButton("⟳")
         btn_rotate.setFixedWidth(40)
         btn_rotate.setToolTip("Rotacionar 90°")
+        btn_rotate.setStyleSheet("""
+            QPushButton {
+                font-size: 20px;
+                background-color: #009A3E;
+                color: white;
+            }
+            QPushButton:hover {
+                background-color: #007A30;
+            }
+        """)
         btn_rotate.clicked.connect(self.rotate_page)
         toolbar.addWidget(btn_rotate)
 
         btn_delete = QPushButton("🗑")
         btn_delete.setFixedWidth(40)
         btn_delete.setToolTip("Excluir Página")
-        btn_delete.setObjectName("DeleteButton") # Style as alert
+        btn_delete.setObjectName("DeleteButton")
+        # Note: DeleteButton is styled in main STYLESHEET in styles.py
+        # But we ensure font size for icon
+        btn_delete.setStyleSheet("font-size: 16px;")
         btn_delete.clicked.connect(self.delete_page)
         toolbar.addWidget(btn_delete)
 

@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QFrame, QSplitter, QFileDialog, QMessageBox, QProgressDialog, QApplication, QLabel
+from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QFrame, QSplitter, QFileDialog, QMessageBox, QProgressDialog, QApplication, QLabel
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
 from .styles import STYLESHEET
 from .left_panel import LeftPanel
@@ -93,6 +93,26 @@ class MainWindow(QMainWindow):
 
         self.init_ui()
 
+    def create_panel_wrapper(self, title, widget):
+        wrapper = QWidget()
+        layout = QVBoxLayout(wrapper)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        title_label = QLabel(title)
+        title_label.setStyleSheet("""
+            background-color: #E0E0E0;
+            color: #333333;
+            font-weight: bold;
+            padding: 5px 10px;
+            border-bottom: 1px solid #CCCCCC;
+        """)
+        title_label.setFixedHeight(30)
+
+        layout.addWidget(title_label)
+        layout.addWidget(widget)
+        return wrapper
+
     def init_ui(self):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -106,24 +126,30 @@ class MainWindow(QMainWindow):
         # and "Painel Esquerdo ... Fixo, largura menor"
         # We will make Left Panel fixed width, and allow Center/Right to share space.
 
-        self.left_panel = LeftPanel(self)
-        self.center_canvas = CenterCanvas(self)
-        self.right_viewer = RightViewer(self)
+        # Wrappers with Titles
+        left_wrapper = self.create_panel_wrapper("Painel de Ações", LeftPanel(self))
+        self.left_panel = left_wrapper.findChild(LeftPanel) # Keep ref
 
-        self.left_panel.setFixedWidth(250)
+        center_wrapper = self.create_panel_wrapper("Canvas de Edição", CenterCanvas(self))
+        self.center_canvas = center_wrapper.findChild(CenterCanvas) # Keep ref
+
+        right_wrapper = self.create_panel_wrapper("Visualizador", RightViewer(self))
+        self.right_viewer = right_wrapper.findChild(RightViewer) # Keep ref
+
+        # Layout Setup
+        left_wrapper.setFixedWidth(250)
 
         # We use a splitter for Center and Right
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
-        self.splitter.addWidget(self.center_canvas)
-        self.splitter.addWidget(self.right_viewer)
+        self.splitter.addWidget(center_wrapper)
+        self.splitter.addWidget(right_wrapper)
 
         # Right panel initially collapsed or takes some space?
-        # Req: "Opcional/Expansível, exibindo a página inteira sob demanda."
         self.splitter.setCollapsible(1, True)
         self.splitter.setStretchFactor(0, 3)
         self.splitter.setStretchFactor(1, 1)
 
-        main_layout.addWidget(self.left_panel)
+        main_layout.addWidget(left_wrapper)
         main_layout.addWidget(self.splitter)
 
         # Connect signals
