@@ -112,9 +112,14 @@ class CenterCanvas(QWidget):
         columns = 3 # Adjust based on width? Or fixed for now.
 
         if count == 0:
-            empty_label = QLabel("Carregue um PDF para começar a editar.")
+            empty_text = (
+                "1. Clique em 'Carregar PDF(s)' acima.\n"
+                "2. Arraste as páginas para reordenar.\n"
+                "3. Use a Lateral Esquerda para ações."
+            )
+            empty_label = QLabel(empty_text)
             empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            empty_label.setStyleSheet("font-size: 18px; color: #666666;")
+            empty_label.setStyleSheet("font-size: 18px; color: #666666; font-weight: bold;")
             self.grid_layout.addWidget(empty_label, 0, 0, 1, columns)
             # Make sure it's centered in the scroll area conceptually?
             # With align top/left, it might be at top.
@@ -141,11 +146,13 @@ class CenterCanvas(QWidget):
                 # Create a container for the header style
                 header_label = QLabel(f"  {file_name}")
                 header_label.setStyleSheet("""
-                    background-color: #009A3E;
-                    color: white;
+                    background-color: #F9F9F9;
+                    color: #009A3E;
                     font-weight: bold;
-                    padding: 5px;
-                    border-radius: 4px;
+                    padding: 8px;
+                    border-left: 5px solid #009A3E;
+                    font-size: 14px;
+                    margin-top: 10px;
                 """)
                 self.grid_layout.addWidget(header_label, row, 0, 1, columns)
                 row += 1

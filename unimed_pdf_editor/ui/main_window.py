@@ -1,17 +1,93 @@
-from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QFrame, QSplitter, QFileDialog, QMessageBox, QProgressDialog, QApplication
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QFrame, QSplitter, QFileDialog, QMessageBox, QProgressDialog, QApplication, QLabel
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
 from .styles import STYLESHEET
 from .left_panel import LeftPanel
 from .center_canvas import CenterCanvas
 from .right_viewer import RightViewer
 from ..core.pdf_manager import PDFManager
 
+class LoadingDialog(QProgressDialog):
+    def __init__(self, message, parent=None):
+        super().__init__(parent)
+        self.setModal(True)
+        self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
+        self.setCancelButton(None)
+        self.setMinimumDuration(0)
+        self.setRange(0, 0) # Indeterminate
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        # Logo
+        logo_label = QLabel()
+        from PyQt6.QtGui import QPixmap
+        import os
+        logo_path = os.path.join("assets", "logo.png")
+        if os.path.exists(logo_path):
+             pixmap = QPixmap(logo_path)
+             if not pixmap.isNull():
+                 logo_label.setPixmap(pixmap.scaled(60, 60, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        layout.addWidget(logo_label)
+
+        # Text
+        text_label = QLabel(message)
+        text_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #333333; margin-left: 10px;")
+        layout.addWidget(text_label)
+
+        self.setStyleSheet("""
+            QDialog {
+                background-color: white;
+                border: 2px solid #009A3E;
+                border-radius: 10px;
+            }
+        """)
+
+class Worker(QObject):
+    finished = pyqtSignal(object)
+    error = pyqtSignal(str)
+
+    def __init__(self, func, *args, **kwargs):
+        super().__init__()
+        self.func = func
+        self.args = args
+        self.kwargs = kwargs
+
+    def run(self):
+        try:
+            result = self.func(*self.args, **self.kwargs)
+            self.finished.emit(result)
+        except Exception as e:
+            self.error.emit(str(e))
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Editor PDF Unimed")
         self.resize(1200, 800)
-        self.setStyleSheet(STYLESHEET)
+
+        # Apply global stylesheet adjustments for Dialogs
+        # Note: QMessageBox usually needs application-level stylesheet or explicit setStyleSheet
+        # We append some specific styling for standard dialogs to the main stylesheet
+        from .styles import COLOR_PRIMARY
+        dialog_style = f"""
+            QMessageBox, QInputDialog {{
+                background-color: white;
+            }}
+            QMessageBox QLabel, QInputDialog QLabel {{
+                color: #333333;
+            }}
+            QMessageBox QPushButton, QInputDialog QPushButton {{
+                background-color: {COLOR_PRIMARY};
+                color: white;
+                border-radius: 4px;
+                padding: 6px 16px;
+                min-width: 80px;
+            }}
+            QMessageBox QPushButton:hover, QInputDialog QPushButton:hover {{
+                background-color: #007A30;
+            }}
+        """
+        self.setStyleSheet(STYLESHEET + dialog_style)
 
         self.pdf_manager = PDFManager()
 
@@ -121,11 +197,7 @@ class MainWindow(QMainWindow):
 
     def show_loading(self, message="Processando..."):
         """Displays a simple modal loading dialog."""
-        self.loading_dialog = QProgressDialog(message, None, 0, 0, self)
-        self.loading_dialog.setWindowTitle("Aguarde")
-        self.loading_dialog.setWindowModality(Qt.WindowModality.WindowModal)
-        self.loading_dialog.setCancelButton(None)
-        self.loading_dialog.setMinimumDuration(0)
+        self.loading_dialog = LoadingDialog(message, self)
         self.loading_dialog.show()
         QApplication.processEvents() # Force UI update
 
@@ -145,6 +217,27 @@ class MainWindow(QMainWindow):
             if hasattr(self.right_viewer, 'clear'):
                 self.right_viewer.clear() # Assuming right_viewer has a clear method or handles loading empty page
 
+    def execute_task(self, func, *args, success_callback=None, **kwargs):
+        """Helper to run tasks in a separate thread."""
+        self.thread = QThread()
+        self.worker = Worker(func, *args, **kwargs)
+        self.worker.moveToThread(self.thread)
+
+        self.thread.started.connect(self.worker.run)
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.thread.finished.connect(self.thread.deleteLater)
+
+        # UI Handling
+        self.worker.finished.connect(self.hide_loading)
+        if success_callback:
+            self.worker.finished.connect(success_callback)
+
+        self.worker.error.connect(lambda err: QMessageBox.critical(self, "Erro", f"Ocorreu um erro: {err}"))
+        self.worker.error.connect(self.hide_loading)
+
+        self.thread.start()
+
     def rotate_selected_pages(self):
         indices = self.center_canvas.get_selected_indices()
         if not indices:
@@ -152,29 +245,22 @@ class MainWindow(QMainWindow):
              return
 
         self.show_loading("Rotacionando páginas...")
-        try:
+
+        def task():
             for idx in indices:
                 self.pdf_manager.rotate_page(idx, 90)
 
-            self.center_canvas.refresh_thumbnails()
-        finally:
-            self.hide_loading()
+        self.execute_task(task, success_callback=lambda _: self.center_canvas.refresh_thumbnails())
 
     def merge_pdfs(self):
-        # The current design loads multiple PDFs and merges them in memory via PDFManager's logic
-        # if we had implemented "append" logic.
-        # But per requirements: "Combina todos os PDFs carregados na ordem do Canvas Central."
-        # Since our PDFManager currently only loads one file at a time or handles a session,
-        # we assume "saving" the current state IS merging if multiple were loaded (or pages rearranged).
-
         output_path, _ = QFileDialog.getSaveFileName(self, "Salvar PDF Unificado", "unificado.pdf", "PDF Files (*.pdf)")
         if output_path:
             self.show_loading("Unificando PDF...")
-            try:
-                self.pdf_manager.save_pdf(output_path)
+
+            def success(_):
                 QMessageBox.information(self, "Sucesso", "PDF unificado salvo com sucesso!")
-            finally:
-                self.hide_loading()
+
+            self.execute_task(self.pdf_manager.save_pdf, output_path, success_callback=success)
 
     def split_pdf(self):
         indices = self.center_canvas.get_selected_indices()
@@ -185,21 +271,21 @@ class MainWindow(QMainWindow):
         output_path, _ = QFileDialog.getSaveFileName(self, "Salvar PDF Separado", "separado.pdf", "PDF Files (*.pdf)")
         if output_path:
             self.show_loading("Separando PDF...")
-            try:
-                self.pdf_manager.split_pdf(indices, output_path)
+
+            def success(_):
                 QMessageBox.information(self, "Sucesso", "PDF separado salvo com sucesso!")
-            finally:
-                self.hide_loading()
+
+            self.execute_task(self.pdf_manager.split_pdf, indices, output_path, success_callback=success)
 
     def compress_pdf(self, level):
         output_path, _ = QFileDialog.getSaveFileName(self, "Salvar PDF Compactado", "compactado.pdf", "PDF Files (*.pdf)")
         if output_path:
             self.show_loading(f"Compactando PDF (Nível: {level})...")
-            try:
-                self.pdf_manager.compress_pdf(output_path, level)
+
+            def success(_):
                 QMessageBox.information(self, "Sucesso", f"PDF compactado ({level}) salvo com sucesso!")
-            finally:
-                self.hide_loading()
+
+            self.execute_task(self.pdf_manager.compress_pdf, output_path, level, success_callback=success)
 
     def delete_selected_pages(self):
         indices = self.center_canvas.get_selected_indices()
@@ -216,24 +302,21 @@ class MainWindow(QMainWindow):
         if not self.pdf_manager.filepath:
             return
 
-        # Warning: This can take time. Should run in thread.
-        # For MVP we run blocking or show a message.
-        # QMessageBox.information(self, "OCR", "Iniciando OCR. Isso pode demorar alguns instantes.")
-
         from ..core.ocr_engine import OCREngine
         ocr = OCREngine()
 
         output_path, _ = QFileDialog.getSaveFileName(self, "Salvar PDF Pesquisável", "ocr.pdf", "PDF Files (*.pdf)")
         if output_path:
             self.show_loading("Executando OCR...")
-            success = False
-            msg = ""
-            try:
-                success, msg = ocr.make_searchable(self.pdf_manager.filepath, output_path)
-            finally:
-                self.hide_loading()
 
-            if success:
-                 QMessageBox.information(self, "Sucesso", msg)
-            else:
-                 QMessageBox.critical(self, "Erro", f"Falha no OCR: {msg}")
+            def task():
+                return ocr.make_searchable(self.pdf_manager.filepath, output_path)
+
+            def success(result):
+                success, msg = result
+                if success:
+                     QMessageBox.information(self, "Sucesso", msg)
+                else:
+                     QMessageBox.critical(self, "Erro", f"Falha no OCR: {msg}")
+
+            self.execute_task(task, success_callback=success)
