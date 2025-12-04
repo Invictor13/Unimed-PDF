@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
-    QWidget, QScrollArea, QGridLayout, QApplication, QLabel
+    QWidget, QScrollArea, QGridLayout, QVBoxLayout, QApplication, QLabel, QGraphicsOpacityEffect
 )
-from PyQt6.QtCore import pyqtSignal, Qt, QMimeData, QPoint
+from PyQt6.QtCore import pyqtSignal, Qt, QMimeData, QPoint, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QDrag, QPixmap, QImage
 from .widgets.thumbnail import Thumbnail
 
@@ -112,52 +112,53 @@ class CenterCanvas(QWidget):
         columns = 3 # Adjust based on width? Or fixed for now.
 
         if count == 0:
-            empty_text = (
-                "1. Clique em 'Carregar PDF(s)' acima.\n"
-                "2. Arraste as páginas para reordenar.\n"
-                "3. Use a Lateral Esquerda para ações."
-            )
-            empty_label = QLabel(empty_text)
-            empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            empty_label.setStyleSheet("font-size: 18px; color: #666666; font-weight: bold;")
-            self.grid_layout.addWidget(empty_label, 0, 0, 1, columns)
-            # Make sure it's centered in the scroll area conceptually?
-            # With align top/left, it might be at top.
-            # But this is inside scroll area.
+            # Empty State with Branding and Animation
+            empty_widget = QWidget()
+            empty_layout = QVBoxLayout(empty_widget)
+            empty_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            # Logo (Optional, or just text)
+            logo_label = QLabel("Unimed")
+            logo_label.setStyleSheet("font-size: 48px; font-weight: bold; color: #009A3E; margin-bottom: 20px;")
+            logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            empty_layout.addWidget(logo_label)
+
+            msg_label = QLabel("Aguardando PDF's")
+            msg_label.setStyleSheet("font-size: 24px; color: #333333; font-weight: bold;")
+            msg_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            empty_layout.addWidget(msg_label)
+
+            # Pulse Animation for Message
+            self.opacity_effect = QGraphicsOpacityEffect(msg_label)
+            msg_label.setGraphicsEffect(self.opacity_effect)
+
+            self.anim = QPropertyAnimation(self.opacity_effect, b"opacity")
+            self.anim.setDuration(1500)
+            self.anim.setStartValue(1.0)
+            self.anim.setEndValue(0.5)
+            self.anim.setEasingCurve(QEasingCurve.Type.InOutQuad)
+            self.anim.setLoopCount(-1) # Infinite
+            self.anim.start()
+
+            sub_label = QLabel("Clique em 'Carregar' ou arraste arquivos aqui.")
+            sub_label.setStyleSheet("font-size: 16px; color: #666666; margin-top: 10px;")
+            sub_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            empty_layout.addWidget(sub_label)
+
+            # Center in grid
+            self.grid_layout.addWidget(empty_widget, 0, 0, 1, columns)
+
             self.container.set_thumbnails([])
             return
 
-        current_file_id = None
+        # Stop animation if running
+        if hasattr(self, 'anim'):
+            self.anim.stop()
+
         row = 0
         col = 0
 
         for i in range(count):
-            page_info = self.main_window.pdf_manager.get_page_info(i)
-            file_id = page_info['file_id']
-            file_name = page_info['file_name']
-
-            if file_id != current_file_id:
-                # Start new section
-                if col > 0:
-                    row += 1
-                    col = 0
-
-                # Add Header Separator
-                # Create a container for the header style
-                header_label = QLabel(f"  {file_name}")
-                header_label.setStyleSheet("""
-                    background-color: #F9F9F9;
-                    color: #009A3E;
-                    font-weight: bold;
-                    padding: 8px;
-                    border-left: 5px solid #009A3E;
-                    font-size: 14px;
-                    margin-top: 10px;
-                """)
-                self.grid_layout.addWidget(header_label, row, 0, 1, columns)
-                row += 1
-                current_file_id = file_id
-
             img_data = self.main_window.pdf_manager.get_thumbnail(i)
             thumb = Thumbnail(i, img_data)
             thumb.clicked.connect(self.on_thumbnail_clicked)

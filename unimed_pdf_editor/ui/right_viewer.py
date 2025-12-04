@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QScrollArea, QHBoxLayout, QFrame
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QScrollArea, QHBoxLayout, QFrame, QStyle
 from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtGui import QPixmap, QImage
 
@@ -18,11 +18,14 @@ class RightViewer(QFrame):
 
         # Toolbar
         toolbar = QHBoxLayout()
-        btn_prev = QPushButton("<")
+
+        btn_prev = QPushButton()
+        btn_prev.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowBack))
         btn_prev.setFixedWidth(40)
         btn_prev.clicked.connect(self.prev_page)
 
-        btn_next = QPushButton(">")
+        btn_next = QPushButton()
+        btn_next.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowForward))
         btn_next.setFixedWidth(40)
         btn_next.clicked.connect(self.next_page)
 
@@ -33,16 +36,29 @@ class RightViewer(QFrame):
         toolbar.addWidget(btn_next)
         toolbar.addStretch()
 
-        btn_rotate = QPushButton("⟳")
+        btn_rotate = QPushButton()
+        btn_rotate.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload))
         btn_rotate.setFixedWidth(40)
         btn_rotate.setToolTip("Rotacionar 90°")
+        btn_rotate.setStyleSheet("""
+            QPushButton {
+                background-color: #009A3E;
+                color: white;
+            }
+            QPushButton:hover {
+                background-color: #007A30;
+            }
+        """)
         btn_rotate.clicked.connect(self.rotate_page)
         toolbar.addWidget(btn_rotate)
 
-        btn_delete = QPushButton("🗑")
+        btn_delete = QPushButton()
+        btn_delete.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon))
         btn_delete.setFixedWidth(40)
         btn_delete.setToolTip("Excluir Página")
-        btn_delete.setObjectName("DeleteButton") # Style as alert
+        btn_delete.setObjectName("DeleteButton")
+        # Ensure icon is visible against red background? Standard icons are usually black or colored.
+        # But QIcon should adapt or be visible.
         btn_delete.clicked.connect(self.delete_page)
         toolbar.addWidget(btn_delete)
 
