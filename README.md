@@ -21,4 +21,4 @@ Para garantir que o OCR funcione em uma aplicação distribuída (empacotada com
 
 1.  **Instale as dependências:** `pip install -r requirements.txt`
 2.  **Instale o Tesseract:** O executável do Tesseract deve estar instalado no sistema para o modo de desenvolvimento.
-3.  **Execute:** `python unimed_pdf_editor/main.py`
+3.  **Execute:** `python -m unimed_pdf_editor.main`
