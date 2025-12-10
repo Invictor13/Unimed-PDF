@@ -11,30 +11,30 @@ import os
 class Header(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(80)
+        self.setFixedHeight(70)
+        # Usando fundo branco para o header e verde na borda para destacar o branding
         self.setStyleSheet("background-color: white; border-bottom: 2px solid #009A3E;")
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(20, 10, 20, 10)
+        layout.setContentsMargins(20, 5, 20, 5)
 
-        # Logo
+        # Logo (Refatorado para ser o primeiro elemento)
         logo_label = QLabel()
         logo_path = os.path.join("assets", "logo.png")
         if os.path.exists(logo_path):
              pixmap = QPixmap(logo_path)
              if not pixmap.isNull():
-                 logo_label.setPixmap(pixmap.scaled(150, 50, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+                 # Tamanho maior no header
+                 logo_label.setPixmap(pixmap.scaled(180, 50, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         layout.addWidget(logo_label)
 
         layout.addStretch()
 
-        title = QLabel("Editor PDF Unimed")
-        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #009A3E; border: none;")
+        title = QLabel("Editor PDF Unimed - Braço Direito")
+        title.setStyleSheet("font-size: 20px; font-weight: 500; color: #333333; border: none;")
         layout.addWidget(title)
 
-        # Could add version or user info here
-        # layout.addStretch()
-
 class LoadingDialog(QProgressDialog):
+    # (MANTIDO DO ORIGINAL)
     def __init__(self, message, parent=None):
         super().__init__(parent)
         self.setModal(True)
@@ -69,6 +69,7 @@ class LoadingDialog(QProgressDialog):
         """)
 
 class Worker(QObject):
+    # (MANTIDO DO ORIGINAL)
     finished = pyqtSignal(object)
     error = pyqtSignal(str)
 
@@ -91,29 +92,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Editor PDF Unimed")
         self.resize(1200, 800)
 
-        # Apply global stylesheet adjustments for Dialogs
-        from .styles import COLOR_PRIMARY
-        dialog_style = f"""
-            QMessageBox, QInputDialog {{
-                background-color: white;
-            }}
-            QMessageBox QLabel, QInputDialog QLabel {{
-                color: #333333;
-                background-color: transparent;
-            }}
-            QMessageBox QPushButton, QInputDialog QPushButton {{
-                background-color: {COLOR_PRIMARY};
-                color: white;
-                border-radius: 4px;
-                padding: 6px 16px;
-                min-width: 80px;
-                border: none;
-            }}
-            QMessageBox QPushButton:hover, QInputDialog QPushButton:hover {{
-                background-color: #007A30;
-            }}
-        """
-        self.setStyleSheet(STYLESHEET + dialog_style)
+        # APLICANDO ESTILOS
+        self.setStyleSheet(STYLESHEET)
 
         self.pdf_manager = PDFManager()
 
@@ -121,18 +101,17 @@ class MainWindow(QMainWindow):
 
     def init_ui(self):
         central_widget = QWidget()
-        central_widget.setStyleSheet("background-color: white;")
         self.setCentralWidget(central_widget)
 
-        main_layout = QVBoxLayout(central_widget)
+        main_layout = QVBoxLayout(central_widget) # Layout principal vertical (Header + Corpo)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Header
+        # 1. HEADER (TOPO)
         self.header = Header(self)
         main_layout.addWidget(self.header)
 
-        # Content Area (Left Panel + Splitter)
+        # 2. CORPO (Lateral + Splitter)
         content_widget = QWidget()
         content_layout = QHBoxLayout(content_widget)
         content_layout.setContentsMargins(0, 0, 0, 0)
@@ -157,7 +136,7 @@ class MainWindow(QMainWindow):
         content_layout.addWidget(self.left_panel)
         content_layout.addWidget(self.splitter)
 
-        main_layout.addWidget(content_widget)
+        main_layout.addWidget(content_widget) # Adiciona o corpo ao layout principal
 
         # Connect signals
         self.left_panel.action_triggered.connect(self.handle_action)
@@ -166,6 +145,7 @@ class MainWindow(QMainWindow):
         self.center_canvas.request_viewer.connect(self.open_viewer)
         self.right_viewer.action_triggered.connect(self.handle_viewer_action)
 
+    # (MANTENHA TODAS AS FUNÇÕES AUXILIARES E DE AÇÃO ABAIXO)
     def handle_action(self, action_name, data=None):
         if action_name == "load_pdf":
             self.load_pdf(data)
@@ -193,16 +173,6 @@ class MainWindow(QMainWindow):
         if not filepaths:
             return
 
-        # Handle multiple files by merging them into one list if necessary
-        # But PDFManager.load_pdf takes a single file usually.
-        # For now, let's load the first one or iterate.
-        # Ideally, we should merge them into the session.
-        # Assuming single file load for now based on current manager capabilities or
-        # if the manager supports appending, we call append.
-        # But based on typical implementation, we might clear and load new.
-        # If multiple files are dropped, we can propose merge.
-
-        # For now, just load the first one.
         count = self.pdf_manager.load_pdf(filepaths[0])
         self.center_canvas.refresh_thumbnails()
 
@@ -222,7 +192,7 @@ class MainWindow(QMainWindow):
         if action == "delete_page":
             self.delete_single_page_from_viewer()
         elif action == "download_page":
-            self.export_single_page()
+            self.export_single_page(data)
 
     def delete_single_page_from_viewer(self):
         idx = self.right_viewer.current_page_index
@@ -234,34 +204,41 @@ class MainWindow(QMainWindow):
                 self.pdf_manager.delete_pages([idx])
                 self.center_canvas.refresh_thumbnails()
                 # Determine next page to show
-                new_total = len(self.pdf_manager.doc) if self.pdf_manager.doc else 0
+                new_total = self.pdf_manager.get_page_count()
                 if new_total > 0:
                     new_idx = min(idx, new_total - 1)
                     self.open_viewer(new_idx)
                 else:
                     self.right_viewer.clear()
+                    self.center_canvas.clear_selection()
 
-    def export_single_page(self):
+    def export_single_page(self, export_format):
         idx = self.right_viewer.current_page_index
         if idx is None:
             return
 
-        output_path, _ = QFileDialog.getSaveFileName(self, "Baixar Página", f"pagina_{idx+1}.pdf", "PDF Files (*.pdf);;Images (*.png *.jpg)")
+        filters = "PDF Files (*.pdf);;PNG Image (*.png);;JPEG Image (*.jpg *.jpeg)"
+        default_ext = ".pdf" if export_format == 'pdf' else ".png"
+        default_filter = f"*{default_ext}"
+
+        output_path, selected_filter = QFileDialog.getSaveFileName(self, "Baixar Página", f"pagina_{idx+1}{default_ext}", filters, default_filter)
         if output_path:
             self.show_loading("Exportando página...")
 
             def task():
-                # Extract single page
-                # If image format, render and save. If PDF, extract page.
-                if output_path.lower().endswith(('.png', '.jpg', '.jpeg')):
-                    # Render page
-                    page = self.pdf_manager.doc[idx]
+                # Extract single page based on filter
+                if selected_filter.endswith('.png)') or selected_filter.endswith('.jpg)'):
+                    # Render page as image
+                    original_idx = self.pdf_manager.page_order[idx][0]
+                    page = self.pdf_manager.doc.load_page(original_idx)
+                    # Render with high quality (300 DPI)
                     pix = page.get_pixmap(dpi=300)
                     pix.save(output_path)
                 else:
                     # Save single page PDF
                     new_doc = self.pdf_manager.fitz.open()
-                    new_doc.insert_pdf(self.pdf_manager.doc, from_page=idx, to_page=idx)
+                    original_idx = self.pdf_manager.page_order[idx][0]
+                    new_doc.insert_pdf(self.pdf_manager.doc, from_page=original_idx, to_page=original_idx)
                     new_doc.save(output_path)
                     new_doc.close()
 
@@ -287,8 +264,8 @@ class MainWindow(QMainWindow):
         if confirm == QMessageBox.StandardButton.Yes:
             self.pdf_manager.clear_session()
             self.center_canvas.refresh_thumbnails()
-            if hasattr(self.right_viewer, 'clear'):
-                self.right_viewer.clear()
+            self.right_viewer.clear()
+            self.center_canvas.clear_selection()
 
     def execute_task(self, func, *args, success_callback=None, **kwargs):
         self.thread = QThread()
@@ -361,7 +338,7 @@ class MainWindow(QMainWindow):
     def delete_selected_pages(self):
         indices = self.center_canvas.get_selected_indices()
         if indices:
-            confirm = QMessageBox.question(self, "Confirmar Exclusão",
+            confirm = QMessageBox.question(self, "Confirmar Exclução",
                                          f"Tem certeza que deseja excluir {len(indices)} página(s)?",
                                          QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
             if confirm == QMessageBox.StandardButton.Yes:

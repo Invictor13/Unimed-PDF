@@ -1,70 +1,125 @@
 # Cores Institucionais Unimed
-COLOR_PRIMARY = "#009A3E"
-COLOR_SECONDARY = "#F9F9F9"
-COLOR_ALERT = "#CC0000"
-COLOR_TEXT = "#333333"
+COLOR_PRIMARY = "#009A3E"   # Verde Unimed
+COLOR_ALERT = "#CC0000"     # Vermelho Excluir
+COLOR_DARK = "#1E1E1E"      # Fundo Escuro para Estrutura (Painel Esquerdo, Cabeçalho)
+COLOR_BACKGROUND = "#F9F9F9" # Fundo Claro para Conteúdo (Canvas)
+COLOR_TEXT = "#333333"      # Texto escuro para conteúdo
+COLOR_TEXT_LIGHT = "white"  # Texto claro para fundo escuro
 
-# Estilo de Botão com Efeito de Profundidade (Simulado)
+# Estilo de Botão (Sólido Verde com Animação 3D)
 BUTTON_STYLE = f"""
     QPushButton {{
-        background-color: white;
-        color: {COLOR_PRIMARY};
-        border: 2px solid {COLOR_PRIMARY};
-        border-radius: 8px;
-        padding: 8px 16px;
+        background-color: {COLOR_PRIMARY};
+        color: {COLOR_TEXT_LIGHT};
+        border: none;
+        padding: 10px 10px;
+        border-radius: 4px;
         font-weight: bold;
-        text-align: center;
-        margin-bottom: 2px;
+        box-shadow: 0 4px #007A30;
+        margin-bottom: 4px;
+        min-height: 30px;
+        min-width: 100px;
+        font-size: 16px;
+        transition: all 0.2s ease;
     }}
     QPushButton:hover {{
-        background-color: {COLOR_PRIMARY};
-        color: white;
-        border: 2px solid {COLOR_PRIMARY};
+        background-color: #007A30;
+        box-shadow: 0 5px #005F25;
+        margin-bottom: 3px;
+        transform: translateY(-1px);
     }}
     QPushButton:pressed {{
-        margin-top: 2px;
+        background-color: #005F25;
+        box-shadow: 0 0 #005F25;
+        margin-top: 4px;
         margin-bottom: 0px;
-        background-color: #007A30;
-        border-color: #007A30;
+        transform: translateY(0px);
     }}
-"""
-
-# Tooltip Style
-TOOLTIP_STYLE = """
-    QToolTip {
-        border: 1px solid #CCCCCC;
-        background-color: #FFFFEE;
-        color: #333333;
-        padding: 5px;
-        opacity: 200;
-    }
+    QPushButton#DeleteButton {{
+        background-color: {COLOR_ALERT};
+        box-shadow: 0 4px #AA0000;
+    }}
+    QPushButton#DeleteButton:hover {{
+        background-color: #AA0000;
+        box-shadow: 0 5px #880000;
+    }}
+    QPushButton#DeleteButton:pressed {{
+        background-color: #880000;
+        box-shadow: 0 0 #880000;
+    }}
 """
 
 # Estilos Gerais
 STYLESHEET = f"""
     QMainWindow {{
-        background-color: white;
+        background-color: {COLOR_DARK};
     }}
     QWidget {{
         font-family: 'Segoe UI', Arial, sans-serif;
         font-size: 14px;
         color: {COLOR_TEXT};
     }}
-    QScrollBar:vertical {{
+
+    /* Cabeçalho e Painel Lateral (Dark Theme) */
+    QFrame#Header, QWidget#LeftPanel {{
+        background-color: {COLOR_DARK};
+        color: {COLOR_TEXT_LIGHT};
+    }}
+
+    /* Input field no Dark Panel */
+    QLineEdit {{
+        border: 1px solid #666666;
+        background-color: #333333;
+        color: {COLOR_TEXT_LIGHT};
+        border-radius: 4px;
+        padding: 5px;
+        font-size: 14px;
+    }}
+
+    /* Center Canvas (Content Area - Light Theme) */
+    QScrollArea {{
         border: none;
-        background: #F0F0F0;
-        width: 10px;
-        margin: 0px 0px 0px 0px;
+        background-color: {COLOR_BACKGROUND};
     }}
-    QScrollBar::handle:vertical {{
-        background: #CCCCCC;
-        min-height: 20px;
-        border-radius: 5px;
+    QWidget#CanvasContainer {{
+        background-color: {COLOR_BACKGROUND};
     }}
-    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
-        height: 0px;
+
+    /* Divisor de PDFs */
+    QLabel#FileHeader {{
+        background-color: white;
+        color: {COLOR_PRIMARY};
+        font-weight: bold;
+        padding: 8px 15px;
+        border-left: 5px solid {COLOR_PRIMARY};
+        border-radius: 4px;
+        font-size: 14px;
+    }}
+
+    /* Thumbnails */
+    QLabel#ThumbnailLabel {{
+        border: 1px solid #DDDDDD;
+        background-color: white;
+        transition: all 0.2s ease;
+    }}
+
+    QLabel#ThumbnailLabel[selected="true"] {{
+        border: 3px solid {COLOR_PRIMARY};
+    }}
+
+    /* Right Viewer (Light Theme) */
+    QFrame#RightViewer {{
+        background-color: white;
+    }}
+
+    /* Dialogos - Corrigindo o problema de caixa preta */
+    QMessageBox, QInputDialog {{
+        background-color: white;
+    }}
+    QMessageBox QLabel, QInputDialog QLabel {{
+        color: {COLOR_TEXT};
+        background-color: transparent;
     }}
 
     {BUTTON_STYLE}
-    {TOOLTIP_STYLE}
 """
