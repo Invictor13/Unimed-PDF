@@ -1,164 +1,148 @@
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QFileDialog, QFrame, QMessageBox, QInputDialog
-)
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QGroupBox, QSpacerItem, QSizePolicy
 from PyQt6.QtCore import pyqtSignal, Qt
-import os
+from .styles import BUTTON_STYLE
 
-class LeftPanel(QFrame):
+class LeftPanel(QWidget):
     action_triggered = pyqtSignal(str, object)
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setObjectName("LeftPanel")
+    def __init__(self, main_window):
+        super().__init__()
+        self.main_window = main_window
         self.init_ui()
 
     def init_ui(self):
+        # Allow stylesheet inheritance but provide specific layout constraints
+        self.setStyleSheet("background-color: white; border-right: 1px solid #E0E0E0;")
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(15, 20, 15, 20)
         layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
-
-        # Title / Branding
-        logo_label = QLabel()
-        logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        # Load logo
-        logo_path = os.path.join("assets", "logo.png")
-        if os.path.exists(logo_path):
-             pixmap = QPixmap(logo_path)
-             if not pixmap.isNull():
-                 # Scale if necessary, but assuming logo is sized appropriate or we limit it
-                 logo_label.setPixmap(pixmap.scaled(200, 100, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-
-        # Fallback if no logo? Or just empty.
-        layout.addWidget(logo_label)
-        layout.addSpacing(20)
 
         # File Operations
-        btn_load = QPushButton("Carregar PDF(s)")
-        btn_load.clicked.connect(self.on_load_clicked)
-        layout.addWidget(btn_load)
+        self.btn_load = self.create_button("⬆️", "Carregar PDF", "load_pdf")
+        layout.addWidget(self.btn_load)
 
-        # Range Input
-        layout.addWidget(QLabel("Seleção (ex: 1-5, 8)"))
-        self.range_input = QLineEdit()
-        self.range_input.setPlaceholderText("Selecione páginas...")
-        self.range_input.textChanged.connect(self.on_range_input_changed)
-        layout.addWidget(self.range_input)
+        # Actions
+        self.btn_merge = self.create_button("➕", "Unificar PDFs", "merge")
+        layout.addWidget(self.btn_merge)
 
-        # Action Buttons
-        btn_merge = QPushButton("Unificar PDFs")
-        btn_merge.clicked.connect(lambda: self.action_triggered.emit("merge", None))
-        layout.addWidget(btn_merge)
+        self.btn_split = self.create_button("✂️", "Separar PDF", "split")
+        layout.addWidget(self.btn_split)
 
-        btn_split = QPushButton("Separar PDF")
-        btn_split.clicked.connect(lambda: self.action_triggered.emit("split", None))
-        layout.addWidget(btn_split)
+        # Compression
+        group_compress = QGroupBox("Compactação")
+        group_compress.setStyleSheet("QGroupBox { font-weight: bold; color: #333333; border: 1px solid #CCCCCC; border-radius: 5px; margin-top: 10px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 3px; }")
+        layout_compress = QVBoxLayout(group_compress)
 
-        btn_compress = QPushButton("Compactar PDF")
-        btn_compress.clicked.connect(self.on_compress_clicked)
-        layout.addWidget(btn_compress)
+        self.btn_compress_low = self.create_button("⬇️ Baixa", "Compactação Leve", "compress", "low")
+        layout_compress.addWidget(self.btn_compress_low)
 
-        btn_ocr = QPushButton("Tornar Pesquisável (OCR)")
-        btn_ocr.clicked.connect(lambda: self.action_triggered.emit("ocr", None))
-        layout.addWidget(btn_ocr)
+        self.btn_compress_high = self.create_button("⬇️ Alta", "Compactação Alta", "compress", "high")
+        layout_compress.addWidget(self.btn_compress_high)
 
+        layout.addWidget(group_compress)
+
+        # Editing
+        self.btn_rotate = self.create_button("🔄", "Rotacionar Seleção", "rotate_selected")
+        layout.addWidget(self.btn_rotate)
+
+        self.btn_delete = self.create_button("🗑️", "Excluir Seleção", "delete")
+        layout.addWidget(self.btn_delete)
+
+        self.btn_ocr = self.create_button("🔍 OCR", "Reconhecimento de Texto", "ocr")
+        layout.addWidget(self.btn_ocr)
+
+        # Selection Input
         layout.addStretch()
+        layout.addWidget(QLabel("Seleção Manual (ex: 1,3-5):"))
+        self.input_selection = QLineEdit()
+        self.input_selection.setPlaceholderText("1, 3-5")
+        self.input_selection.returnPressed.connect(self.handle_manual_selection)
+        layout.addWidget(self.input_selection)
 
-        # New QoL Buttons - Moved above Clear Session
-        btn_rotate = QPushButton("Rotacionar Selecionadas (90°)")
-        btn_rotate.clicked.connect(lambda: self.action_triggered.emit("rotate_selected", None))
-        layout.addWidget(btn_rotate)
+        self.btn_clear = self.create_button("🧹 Limpar", "Limpar Sessão", "clear_session")
+        self.btn_clear.setStyleSheet(self.btn_clear.styleSheet() + "background-color: #666666; border-color: #666666; color: white;")
+        layout.addWidget(self.btn_clear)
 
-        btn_clear = QPushButton("Limpar Sessão")
-        btn_clear.clicked.connect(lambda: self.action_triggered.emit("clear_session", None))
-        layout.addWidget(btn_clear)
+    def create_button(self, text, tooltip, action_name, data=None):
+        btn = QPushButton(text)
+        btn.setToolTip(tooltip)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        # Using a base style for size, but relying on global stylesheet for effects
+        # Actually, if I set stylesheet here, I overwrite the global one for this widget unless I am careful.
+        # The global STYLESHEET sets generic QPushButton style.
+        # But here I want specific sizing/font for these icon buttons.
+        # I should merge the styles or append to what comes from global.
+        # However, global stylesheet applies to class. Local setStyleSheet applies to instance.
+        # Local overrides global.
 
-        btn_delete = QPushButton("Excluir Páginas")
-        btn_delete.setObjectName("DeleteButton")
-        btn_delete.clicked.connect(lambda: self.action_triggered.emit("delete", None))
-        layout.addWidget(btn_delete)
+        # I will inject BUTTON_STYLE content here + specific overrides
+        # But BUTTON_STYLE is complex.
+        # A better way is to rely on the global STYLESHEET loaded in MainWindow,
+        # and here only set properties that are different (font size).
+        # But `setStyleSheet` on a widget REPLACES the computed style for that widget if not careful?
+        # No, `setStyleSheet` on a widget sets the style sheet for that widget.
+        # If I want to use the global style, I shouldn't set a full stylesheet here that conflicts.
 
-    def on_load_clicked(self):
-        files, _ = QFileDialog.getOpenFileNames(self, "Selecionar PDFs", "", "PDF Files (*.pdf)")
-        if files:
-            self.action_triggered.emit("load_pdf", files)
+        # Let's try to not set a full stylesheet, but just minimal adjustments.
+        # But I need "background-color: #F0F0F0" which differs from the "white/primary" in BUTTON_STYLE?
+        # The user wanted "Elegance" which implies using the Green/White theme.
+        # My previous LeftPanel code used gray buttons. The BUTTON_STYLE uses White/Green.
+        # I should probably switch LeftPanel to use the elegant White/Green style too,
+        # or a variation.
+        # Let's use the BUTTON_STYLE (White with Green border) for LeftPanel too.
+        # It looks cleaner.
 
-    def on_compress_clicked(self):
-        levels = ["Baixa", "Média", "Alta"]
-        item, ok = QInputDialog.getItem(self, "Compactar PDF", "Selecione o nível:", levels, 1, False)
-        if ok and item:
-            level_map = {"Baixa": "low", "Média": "medium", "Alta": "high"}
-            self.action_triggered.emit("compress", level_map[item])
+        # So I will NOT set a custom stylesheet here, except for font size maybe.
+        btn.setStyleSheet("font-size: 16px;")
 
-    def update_selection_input(self, indices):
-        # Convert 0-based indices to 1-based string representation
-        self.range_input.blockSignals(True)
+        btn.clicked.connect(lambda: self.action_triggered.emit(action_name, data))
+        return btn
+
+    def handle_manual_selection(self):
+        text = self.input_selection.text()
+        indices = []
         try:
-            if not indices:
-                self.range_input.setText("")
-                return
-
-            indices = sorted([i + 1 for i in indices])
-            ranges = []
-
-            start = indices[0]
-            end = start
-
-            for i in range(1, len(indices)):
-                if indices[i] == end + 1:
-                    end = indices[i]
+            parts = text.split(',')
+            for part in parts:
+                part = part.strip()
+                if '-' in part:
+                    start, end = map(int, part.split('-'))
+                    indices.extend(range(start - 1, end))
                 else:
-                    if start == end:
-                        ranges.append(str(start))
-                    else:
-                        ranges.append(f"{start}-{end}")
-                    start = indices[i]
-                    end = start
+                    indices.append(int(part) - 1)
+            self.action_triggered.emit("select_pages", indices)
+        except ValueError:
+            pass # Invalid input
 
-            if start == end:
-                ranges.append(str(start))
+    def update_selection_input(self, selected_indices):
+        if not selected_indices:
+            self.input_selection.setText("")
+            return
+
+        sorted_indices = sorted(selected_indices)
+        parts = []
+        if not sorted_indices:
+             return
+
+        start = sorted_indices[0]
+        end = start
+
+        for i in sorted_indices[1:]:
+            if i == end + 1:
+                end = i
             else:
-                ranges.append(f"{start}-{end}")
+                if start == end:
+                    parts.append(str(start + 1))
+                else:
+                    parts.append(f"{start + 1}-{end + 1}")
+                start = i
+                end = i
 
-            self.range_input.setText(", ".join(ranges))
-        finally:
-            self.range_input.blockSignals(False)
+        if start == end:
+            parts.append(str(start + 1))
+        else:
+            parts.append(f"{start + 1}-{end + 1}")
 
-
-    def on_range_input_changed(self, text):
-        # Parse range like "1-5, 8"
-        indices = set()
-        parts = text.split(',')
-        for part in parts:
-            part = part.strip()
-            if not part:
-                continue
-
-            if '-' in part:
-                # Range
-                subparts = part.split('-')
-                if len(subparts) == 2:
-                    try:
-                        start = int(subparts[0])
-                        end = int(subparts[1])
-                        # Handle reverse range or just min-max
-                        r_start = min(start, end)
-                        r_end = max(start, end)
-                        for i in range(r_start, r_end + 1):
-                            indices.add(i - 1) # Convert 1-based to 0-based
-                    except ValueError:
-                        pass
-            else:
-                # Single number
-                try:
-                    val = int(part)
-                    indices.add(val - 1)
-                except ValueError:
-                    pass
-
-        # Emit signal to update canvas selection
-        # We need a new signal or reuse existing mechanism.
-        # LeftPanel doesn't have direct access to Canvas.
-        # We should emit a signal that MainWindow catches.
-        self.action_triggered.emit("select_pages", list(indices))
+        self.input_selection.blockSignals(True)
+        self.input_selection.setText(", ".join(parts))
+        self.input_selection.blockSignals(False)

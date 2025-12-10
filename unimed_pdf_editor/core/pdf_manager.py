@@ -12,29 +12,34 @@ class PDFManager:
         self.filepath = None
         self.page_order = [] # List of tuples: (original_doc_page_index, file_name, file_id)
         self.thumbnails = {} # Cache for thumbnails
+        self.fitz = fitz # Export fitz module for consumers
 
     def load_pdf(self, filepath):
-        new_doc = fitz.open(filepath)
-        file_name = os.path.basename(filepath)
-        file_id = str(uuid.uuid4())
+        try:
+            new_doc = fitz.open(filepath)
+            file_name = os.path.basename(filepath)
+            file_id = str(uuid.uuid4())
 
-        if self.doc is None:
-            self.doc = new_doc
-            self.filepath = filepath
-            current_count = 0
-        else:
-            current_count = len(self.doc)
-            self.doc.insert_pdf(new_doc)
-            # new_doc is merged into self.doc
+            if self.doc is None:
+                self.doc = new_doc
+                self.filepath = filepath
+                current_count = 0
+            else:
+                current_count = len(self.doc)
+                self.doc.insert_pdf(new_doc)
+                # new_doc is merged into self.doc
 
-        new_pages_count = len(new_doc)
+            new_pages_count = len(new_doc)
 
-        # Add new page indices with file tracking info
-        for i in range(new_pages_count):
-            # The page index in the merged doc is current_count + i
-            self.page_order.append((current_count + i, file_name, file_id))
+            # Add new page indices with file tracking info
+            for i in range(new_pages_count):
+                # The page index in the merged doc is current_count + i
+                self.page_order.append((current_count + i, file_name, file_id))
 
-        return len(self.page_order)
+            return len(self.page_order)
+        except Exception as e:
+            print(f"Error loading PDF: {e}")
+            return 0
 
     def rotate_page(self, page_index, angle=90):
         if 0 <= page_index < len(self.page_order):
@@ -57,14 +62,15 @@ class PDFManager:
     def get_thumbnail(self, page_index, scale=0.3):
         original_index, _, _ = self.page_order[page_index]
 
-        if original_index in self.thumbnails:
+        if original_index in self.thumbnails and scale == 0.3:
             return self.thumbnails[original_index]
 
         page = self.doc.load_page(original_index)
         pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale))
 
         img_data = pix.tobytes("ppm")
-        self.thumbnails[original_index] = img_data
+        if scale == 0.3:
+            self.thumbnails[original_index] = img_data
         return img_data
 
     def get_page_image(self, page_index, scale=2.0):
@@ -150,6 +156,7 @@ class PDFManager:
                         processed_xrefs.add(xref)
 
                         try:
+                            # Use fitz.Pixmap(doc, xref) which is the most reliable way to get image content
                             pix = fitz.Pixmap(subset_doc, xref)
 
                             # Check colorspace, convert to RGB if necessary (e.g. CMYK) to allow JPEG conversion
@@ -167,14 +174,13 @@ class PDFManager:
                             # Always attempt to compress if it's High mode, even if dimensions are okay.
                             # We create a new pixmap to ensure we have control over the data
 
+                            # NOTE: Fixed the issue where new_pix might be garbage collected prematurely or incorrect scale used
                             if should_downsample:
                                 scale = max_dim / max(pix.width, pix.height)
                                 new_width = int(pix.width * scale)
                                 new_height = int(pix.height * scale)
                                 new_pix = fitz.Pixmap(pix, new_width, new_height)
                             else:
-                                new_width = pix.width
-                                new_height = pix.height
                                 new_pix = fitz.Pixmap(pix) # Copy
 
                             # Convert to JPEG stream with high compression (Quality 30)
@@ -186,8 +192,8 @@ class PDFManager:
 
                             # Update metadata to reflect new dimensions and JPEG encoding
                             # Note: Values must be strings for xref_set_key
-                            subset_doc.xref_set_key(xref, "Width", str(new_width))
-                            subset_doc.xref_set_key(xref, "Height", str(new_height))
+                            subset_doc.xref_set_key(xref, "Width", str(new_pix.width))
+                            subset_doc.xref_set_key(xref, "Height", str(new_pix.height))
                             subset_doc.xref_set_key(xref, "Filter", "/DCTDecode")
                             subset_doc.xref_set_key(xref, "BitsPerComponent", "8")
 
@@ -199,10 +205,12 @@ class PDFManager:
 
                             new_pix = None
                             pix = None
-                        except Exception:
+                        except Exception as e:
+                            print(f"Failed to compress image xref {xref}: {e}")
                             # If anything fails for an image, skip it and continue
                             continue
-            except Exception:
+            except Exception as e:
+                print(f"Global compression error: {e}")
                 # If global processing fails, proceed to save what we have
                 pass
 
