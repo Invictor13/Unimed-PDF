@@ -1,10 +1,38 @@
-from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QFrame, QSplitter, QFileDialog, QMessageBox, QProgressDialog, QApplication, QLabel
+from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QFrame, QSplitter, QFileDialog, QMessageBox, QProgressDialog, QApplication, QLabel, QInputDialog
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
+from PyQt6.QtGui import QPixmap, QIcon
 from .styles import STYLESHEET
 from .left_panel import LeftPanel
 from .center_canvas import CenterCanvas
 from .right_viewer import RightViewer
 from ..core.pdf_manager import PDFManager
+import os
+
+class Header(QFrame):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(80)
+        self.setStyleSheet("background-color: white; border-bottom: 2px solid #009A3E;")
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(20, 10, 20, 10)
+
+        # Logo
+        logo_label = QLabel()
+        logo_path = os.path.join("assets", "logo.png")
+        if os.path.exists(logo_path):
+             pixmap = QPixmap(logo_path)
+             if not pixmap.isNull():
+                 logo_label.setPixmap(pixmap.scaled(150, 50, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        layout.addWidget(logo_label)
+
+        layout.addStretch()
+
+        title = QLabel("Editor PDF Unimed")
+        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #009A3E; border: none;")
+        layout.addWidget(title)
+
+        # Could add version or user info here
+        # layout.addStretch()
 
 class LoadingDialog(QProgressDialog):
     def __init__(self, message, parent=None):
@@ -20,8 +48,6 @@ class LoadingDialog(QProgressDialog):
 
         # Logo
         logo_label = QLabel()
-        from PyQt6.QtGui import QPixmap
-        import os
         logo_path = os.path.join("assets", "logo.png")
         if os.path.exists(logo_path):
              pixmap = QPixmap(logo_path)
@@ -31,7 +57,7 @@ class LoadingDialog(QProgressDialog):
 
         # Text
         text_label = QLabel(message)
-        text_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #333333; margin-left: 10px;")
+        text_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #333333; margin-left: 10px; border: none;")
         layout.addWidget(text_label)
 
         self.setStyleSheet("""
@@ -66,8 +92,6 @@ class MainWindow(QMainWindow):
         self.resize(1200, 800)
 
         # Apply global stylesheet adjustments for Dialogs
-        # Note: QMessageBox usually needs application-level stylesheet or explicit setStyleSheet
-        # We append some specific styling for standard dialogs to the main stylesheet
         from .styles import COLOR_PRIMARY
         dialog_style = f"""
             QMessageBox, QInputDialog {{
@@ -75,6 +99,7 @@ class MainWindow(QMainWindow):
             }}
             QMessageBox QLabel, QInputDialog QLabel {{
                 color: #333333;
+                background-color: transparent;
             }}
             QMessageBox QPushButton, QInputDialog QPushButton {{
                 background-color: {COLOR_PRIMARY};
@@ -82,6 +107,7 @@ class MainWindow(QMainWindow):
                 border-radius: 4px;
                 padding: 6px 16px;
                 min-width: 80px;
+                border: none;
             }}
             QMessageBox QPushButton:hover, QInputDialog QPushButton:hover {{
                 background-color: #007A30;
@@ -93,64 +119,45 @@ class MainWindow(QMainWindow):
 
         self.init_ui()
 
-    def create_panel_wrapper(self, title, widget):
-        wrapper = QWidget()
-        layout = QVBoxLayout(wrapper)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        title_label = QLabel(title)
-        title_label.setStyleSheet("""
-            background-color: #E0E0E0;
-            color: #333333;
-            font-weight: bold;
-            padding: 5px 10px;
-            border-bottom: 1px solid #CCCCCC;
-        """)
-        title_label.setFixedHeight(30)
-
-        layout.addWidget(title_label)
-        layout.addWidget(widget)
-        return wrapper
-
     def init_ui(self):
         central_widget = QWidget()
+        central_widget.setStyleSheet("background-color: white;")
         self.setCentralWidget(central_widget)
 
-        main_layout = QHBoxLayout(central_widget)
+        main_layout = QVBoxLayout(central_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Splitter to allow resizing panels (though requirements said fixed, split view usually implies adjustable)
-        # Requirements: "Três painéis principais (um split view horizontal)"
-        # and "Painel Esquerdo ... Fixo, largura menor"
-        # We will make Left Panel fixed width, and allow Center/Right to share space.
+        # Header
+        self.header = Header(self)
+        main_layout.addWidget(self.header)
 
-        # Wrappers with Titles
-        left_wrapper = self.create_panel_wrapper("Painel de Ações", LeftPanel(self))
-        self.left_panel = left_wrapper.findChild(LeftPanel) # Keep ref
+        # Content Area (Left Panel + Splitter)
+        content_widget = QWidget()
+        content_layout = QHBoxLayout(content_widget)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(0)
 
-        center_wrapper = self.create_panel_wrapper("Canvas de Edição", CenterCanvas(self))
-        self.center_canvas = center_wrapper.findChild(CenterCanvas) # Keep ref
+        # Left Panel (Fixed Width)
+        self.left_panel = LeftPanel(self)
+        self.left_panel.setFixedWidth(250)
 
-        right_wrapper = self.create_panel_wrapper("Visualizador", RightViewer(self))
-        self.right_viewer = right_wrapper.findChild(RightViewer) # Keep ref
+        # Center and Right (Splitter)
+        self.center_canvas = CenterCanvas(self)
+        self.right_viewer = RightViewer(self)
 
-        # Layout Setup
-        left_wrapper.setFixedWidth(250)
-
-        # We use a splitter for Center and Right
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
-        self.splitter.addWidget(center_wrapper)
-        self.splitter.addWidget(right_wrapper)
+        self.splitter.addWidget(self.center_canvas)
+        self.splitter.addWidget(self.right_viewer)
 
-        # Right panel initially collapsed or takes some space?
         self.splitter.setCollapsible(1, True)
         self.splitter.setStretchFactor(0, 3)
         self.splitter.setStretchFactor(1, 1)
 
-        main_layout.addWidget(left_wrapper)
-        main_layout.addWidget(self.splitter)
+        content_layout.addWidget(self.left_panel)
+        content_layout.addWidget(self.splitter)
+
+        main_layout.addWidget(content_widget)
 
         # Connect signals
         self.left_panel.action_triggered.connect(self.handle_action)
@@ -160,7 +167,6 @@ class MainWindow(QMainWindow):
         self.right_viewer.action_triggered.connect(self.handle_viewer_action)
 
     def handle_action(self, action_name, data=None):
-        # Delegate to appropriate handlers
         if action_name == "load_pdf":
             self.load_pdf(data)
         elif action_name == "merge":
@@ -181,26 +187,22 @@ class MainWindow(QMainWindow):
             self.rotate_selected_pages()
 
     def select_pages_from_input(self, indices):
-        # Update selection in Canvas
-        # We need a method in Canvas to set selection programmatically without emitting signal back?
-        # Or just use set_selected.
         self.center_canvas.set_selection(indices)
 
     def load_pdf(self, filepaths):
-        # For simplicity, assuming single file load or handling multiple by merging first?
-        # Req: "Combina todos os PDFs carregados ... Se apenas um PDF estiver carregado..."
-        # It seems we should support loading multiple files.
-        # The PDFManager I wrote supports one doc.
-        # I should probably update PDFManager to handle "Import" which merges into current session
-        # OR just load one for now as MVP.
-        # Let's stick to loading one file or merging multiple into one session immediately.
-
         if not filepaths:
             return
 
-        # MVP: Load the first one. To support multiple, we would need to merge them in memory first.
-        # Let's update PDFManager to support 'add_pdf' or similar if needed.
-        # For now, let's load the first one.
+        # Handle multiple files by merging them into one list if necessary
+        # But PDFManager.load_pdf takes a single file usually.
+        # For now, let's load the first one or iterate.
+        # Ideally, we should merge them into the session.
+        # Assuming single file load for now based on current manager capabilities or
+        # if the manager supports appending, we call append.
+        # But based on typical implementation, we might clear and load new.
+        # If multiple files are dropped, we can propose merge.
+
+        # For now, just load the first one.
         count = self.pdf_manager.load_pdf(filepaths[0])
         self.center_canvas.refresh_thumbnails()
 
@@ -211,24 +213,69 @@ class MainWindow(QMainWindow):
         self.pdf_manager.move_page(from_idx, to_idx)
 
     def open_viewer(self, page_index):
-        # Show right panel if hidden
         if self.splitter.sizes()[1] == 0:
-             self.splitter.setSizes([700, 300]) # Approximate
+             self.splitter.setSizes([700, 300])
 
         self.right_viewer.load_page(page_index)
 
     def handle_viewer_action(self, action, data):
-        # Rotate, Delete from viewer
-        pass
+        if action == "delete_page":
+            self.delete_single_page_from_viewer()
+        elif action == "download_page":
+            self.export_single_page()
+
+    def delete_single_page_from_viewer(self):
+        idx = self.right_viewer.current_page_index
+        if idx is not None:
+             confirm = QMessageBox.question(self, "Confirmar Exclusão",
+                                         f"Tem certeza que deseja excluir a página {idx + 1}?",
+                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+             if confirm == QMessageBox.StandardButton.Yes:
+                self.pdf_manager.delete_pages([idx])
+                self.center_canvas.refresh_thumbnails()
+                # Determine next page to show
+                new_total = len(self.pdf_manager.doc) if self.pdf_manager.doc else 0
+                if new_total > 0:
+                    new_idx = min(idx, new_total - 1)
+                    self.open_viewer(new_idx)
+                else:
+                    self.right_viewer.clear()
+
+    def export_single_page(self):
+        idx = self.right_viewer.current_page_index
+        if idx is None:
+            return
+
+        output_path, _ = QFileDialog.getSaveFileName(self, "Baixar Página", f"pagina_{idx+1}.pdf", "PDF Files (*.pdf);;Images (*.png *.jpg)")
+        if output_path:
+            self.show_loading("Exportando página...")
+
+            def task():
+                # Extract single page
+                # If image format, render and save. If PDF, extract page.
+                if output_path.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    # Render page
+                    page = self.pdf_manager.doc[idx]
+                    pix = page.get_pixmap(dpi=300)
+                    pix.save(output_path)
+                else:
+                    # Save single page PDF
+                    new_doc = self.pdf_manager.fitz.open()
+                    new_doc.insert_pdf(self.pdf_manager.doc, from_page=idx, to_page=idx)
+                    new_doc.save(output_path)
+                    new_doc.close()
+
+            def success(_):
+                 QMessageBox.information(self, "Sucesso", "Página exportada com sucesso!")
+
+            self.execute_task(task, success_callback=success)
 
     def show_loading(self, message="Processando..."):
-        """Displays a simple modal loading dialog."""
         self.loading_dialog = LoadingDialog(message, self)
         self.loading_dialog.show()
-        QApplication.processEvents() # Force UI update
+        QApplication.processEvents()
 
     def hide_loading(self):
-        """Hides the loading dialog."""
         if hasattr(self, 'loading_dialog') and self.loading_dialog:
             self.loading_dialog.close()
             self.loading_dialog = None
@@ -241,10 +288,9 @@ class MainWindow(QMainWindow):
             self.pdf_manager.clear_session()
             self.center_canvas.refresh_thumbnails()
             if hasattr(self.right_viewer, 'clear'):
-                self.right_viewer.clear() # Assuming right_viewer has a clear method or handles loading empty page
+                self.right_viewer.clear()
 
     def execute_task(self, func, *args, success_callback=None, **kwargs):
-        """Helper to run tasks in a separate thread."""
         self.thread = QThread()
         self.worker = Worker(func, *args, **kwargs)
         self.worker.moveToThread(self.thread)
@@ -254,7 +300,6 @@ class MainWindow(QMainWindow):
         self.worker.finished.connect(self.worker.deleteLater)
         self.thread.finished.connect(self.thread.deleteLater)
 
-        # UI Handling
         self.worker.finished.connect(self.hide_loading)
         if success_callback:
             self.worker.finished.connect(success_callback)

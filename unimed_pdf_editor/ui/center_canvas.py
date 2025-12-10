@@ -1,9 +1,10 @@
 from PyQt6.QtWidgets import (
-    QWidget, QScrollArea, QGridLayout, QVBoxLayout, QApplication, QLabel
+    QWidget, QScrollArea, QGridLayout, QVBoxLayout, QApplication, QLabel, QHBoxLayout, QFrame
 )
 from PyQt6.QtCore import pyqtSignal, Qt, QMimeData, QPoint
 from PyQt6.QtGui import QDrag, QPixmap, QImage
 from .widgets.thumbnail import Thumbnail
+import os
 
 class FloatingCard(QLabel):
     def __init__(self, parent=None):
@@ -37,8 +38,6 @@ class ContainerWidget(QWidget):
             return
 
         drop_pos = event.position().toPoint()
-
-        # container_pos is drop_pos since we are in the container
         container_pos = drop_pos
 
         target_index = -1
@@ -53,6 +52,33 @@ class ContainerWidget(QWidget):
 
         if target_index != -1 and target_index != source_index:
             self.page_order_changed.emit(source_index, target_index)
+
+class EmptyState(QFrame):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet("background-color: transparent;")
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(20)
+
+        # Logo
+        logo_label = QLabel()
+        logo_path = os.path.join("assets", "logo.png")
+        if os.path.exists(logo_path):
+             pixmap = QPixmap(logo_path)
+             if not pixmap.isNull():
+                 logo_label.setPixmap(pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        layout.addWidget(logo_label, 0, Qt.AlignmentFlag.AlignCenter)
+
+        msg_label = QLabel("Aguardando PDF's")
+        msg_label.setStyleSheet("font-size: 28px; color: #333333; font-weight: bold;")
+        msg_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(msg_label)
+
+        sub_label = QLabel("Clique em 'Carregar' ou arraste arquivos aqui.")
+        sub_label.setStyleSheet("font-size: 18px; color: #666666;")
+        sub_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(sub_label)
 
 class CenterCanvas(QWidget):
     page_selected = pyqtSignal(list) # list of selected indices
@@ -72,28 +98,51 @@ class CenterCanvas(QWidget):
         self.init_ui()
 
     def init_ui(self):
-        # We use a ScrollArea containing a widget with GridLayout
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Toolbar
+        toolbar = QWidget()
+        toolbar.setStyleSheet("background-color: #F0F0F0; border-bottom: 1px solid #CCCCCC;")
+        toolbar.setFixedHeight(40)
+        toolbar_layout = QHBoxLayout(toolbar)
+        toolbar_layout.setContentsMargins(10, 0, 10, 0)
+
+        # Placeholder for toggles
+        # toolbar_layout.addWidget(QLabel("Visualização"))
+        toolbar_layout.addStretch()
+
+        main_layout.addWidget(toolbar)
+
+        # Scroll Area
         self.scroll_area = QScrollArea(self)
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setAcceptDrops(True)
+        self.scroll_area.setStyleSheet("background-color: #F9F9F9; border: none;")
 
-        self.container = ContainerWidget() # Use custom container
+        self.container = ContainerWidget()
         self.container.setObjectName("CanvasContainer")
+        self.container.setStyleSheet("background-color: #F9F9F9;")
         self.container.page_order_changed.connect(self.handle_reorder)
 
         self.grid_layout = QGridLayout(self.container)
         self.grid_layout.setSpacing(20)
         self.grid_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self.grid_layout.setContentsMargins(20, 20, 20, 20)
 
         self.scroll_area.setWidget(self.container)
-
-        # Main layout for this widget (CenterCanvas)
-        main_layout = QGridLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(self.scroll_area)
+
+        # Empty State (Initially hidden or shown based on content)
+        # We will handle this in refresh_thumbnails.
+        # Actually, adding it to layout might be better, but grid layout makes it tricky if mixing.
+        # Let's handle it by clearing grid and adding it.
 
         # Enable drag and drop on the container
         self.container.setAcceptDrops(True)
+
+        self.refresh_thumbnails()
 
     def handle_reorder(self, src, dst):
         self.page_order_changed.emit(src, dst)
@@ -109,34 +158,12 @@ class CenterCanvas(QWidget):
         self.selected_indices.clear()
 
         count = self.main_window.pdf_manager.get_page_count()
-        columns = 3 # Adjust based on width? Or fixed for now.
+        columns = 3
 
         if count == 0:
-            # Empty State with Branding
-            empty_widget = QWidget()
-            empty_layout = QVBoxLayout(empty_widget)
-            empty_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-            # Logo (Optional, or just text)
-            # If we had a logo asset, we'd use it. For now, styled text.
-            logo_label = QLabel("Unimed")
-            logo_label.setStyleSheet("font-size: 48px; font-weight: bold; color: #009A3E; margin-bottom: 20px;")
-            logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            empty_layout.addWidget(logo_label)
-
-            msg_label = QLabel("Aguardando PDF's")
-            msg_label.setStyleSheet("font-size: 24px; color: #333333; font-weight: bold;")
-            msg_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            empty_layout.addWidget(msg_label)
-
-            sub_label = QLabel("Clique em 'Carregar' ou arraste arquivos aqui.")
-            sub_label.setStyleSheet("font-size: 16px; color: #666666; margin-top: 10px;")
-            sub_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            empty_layout.addWidget(sub_label)
-
-            # Center in grid
-            self.grid_layout.addWidget(empty_widget, 0, 0, 1, columns)
-
+            # Show Empty State
+            empty_state = EmptyState()
+            self.grid_layout.addWidget(empty_state, 0, 0, 1, columns)
             self.container.set_thumbnails([])
             return
 
@@ -150,24 +177,33 @@ class CenterCanvas(QWidget):
             file_name = page_info['file_name']
 
             if file_id != current_file_id:
-                # Start new section
                 if col > 0:
                     row += 1
                     col = 0
 
-                # Add Header Separator
-                # Create a container for the header style
-                header_label = QLabel(f"  {file_name}")
-                header_label.setStyleSheet("""
-                    background-color: #F9F9F9;
-                    color: #009A3E;
-                    font-weight: bold;
-                    padding: 8px;
-                    border-left: 5px solid #009A3E;
-                    font-size: 14px;
+                # Header Separator
+                header_frame = QFrame()
+                header_frame.setStyleSheet("""
+                    background-color: transparent;
                     margin-top: 10px;
                 """)
-                self.grid_layout.addWidget(header_label, row, 0, 1, columns)
+                header_layout = QHBoxLayout(header_frame)
+                header_layout.setContentsMargins(0, 0, 0, 0)
+
+                header_label = QLabel(f"{file_name}")
+                header_label.setStyleSheet("""
+                    background-color: white;
+                    color: #009A3E;
+                    font-weight: bold;
+                    padding: 8px 15px;
+                    border-left: 5px solid #009A3E;
+                    border-radius: 4px;
+                    font-size: 14px;
+                """)
+                header_layout.addWidget(header_label)
+                header_layout.addStretch()
+
+                self.grid_layout.addWidget(header_frame, row, 0, 1, columns)
                 row += 1
                 current_file_id = file_id
 
@@ -186,15 +222,12 @@ class CenterCanvas(QWidget):
                 col = 0
                 row += 1
 
-        # Update container's thumbnail reference
         self.container.set_thumbnails(self.thumbnails)
 
     def on_thumbnail_hover(self, index, pos):
-        # Show floating card
-        img_data = self.main_window.pdf_manager.get_thumbnail(index, scale=0.8) # Higher quality for hover
+        img_data = self.main_window.pdf_manager.get_thumbnail(index, scale=0.8)
         image = QImage.fromData(img_data)
         pixmap = QPixmap.fromImage(image)
-        # Limit size
         if pixmap.height() > 300:
             pixmap = pixmap.scaledToHeight(300, Qt.TransformationMode.SmoothTransformation)
 
@@ -217,8 +250,6 @@ class CenterCanvas(QWidget):
             else:
                 self.selected_indices.add(index)
 
-            # Requirement: "Visualizador por Click: Um clique na miniatura deve ... Exibir a página inteira no Painel Direito"
-            # It should also select.
             self.request_viewer.emit(index)
             self.last_clicked_index = index
 
@@ -241,35 +272,9 @@ class CenterCanvas(QWidget):
         self.page_selected.emit([])
 
     def set_selection(self, indices):
-        # Programmatic selection setting
         self.selected_indices = set()
         count = self.main_window.pdf_manager.get_page_count()
         for i in indices:
             if 0 <= i < count:
                 self.selected_indices.add(i)
-
         self.update_visual_selection()
-        # We probably shouldn't emit 'page_selected' back to avoid loop if this came from LeftPanel
-        # But LeftPanel only listens to nothing, it emits.
-        # However, if we emit, LeftPanel will receive it via MainWindow connection and update text?
-        # MainWindow connects: self.center_canvas.page_selected.connect(self.handle_page_selection)
-        # handle_page_selection calls left_panel.update_selection_input.
-        # update_selection_input updates text.
-        # Updating text MIGHT trigger textChanged?
-        # If QLineEdit.setText triggers textChanged, we have a loop.
-        # Usually programmatic setText DOES NOT trigger textChanged signal in Qt?
-        # WAIT: setText DOES NOT trigger textChanged in Qt? It usually DOES NOT?
-        # Actually in PyQt/Qt, setText DOES NOT trigger textChanged if not modified by user?
-        # Correction: setText DOES trigger textChanged. It DOES.
-        # We need to block signals in LeftPanel when updating text.
-        pass
-
-    # Drag and Drop Logic Implementation
-    # This is complex in a GridLayout.
-    # For MVP, let's skip complex visual drag-and-drop reordering inside the grid
-    # and just focus on basic functionality or implement it if time permits.
-    # Requirement: "Drag-and-Drop (Alternar Ordem): Deve permitir que o usuário arraste e solte miniaturas livremente"
-
-    # We can use the drag events.
-    # When drag enters a thumbnail, we can visualize where it would drop.
-    pass
