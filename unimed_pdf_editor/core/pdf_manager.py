@@ -59,6 +59,60 @@ class PDFManager:
             return {'original_index': idx, 'file_name': fname, 'file_id': fid}
         return None
 
+    def get_files_in_order(self):
+        """Returns a list of unique files in their current visual order.
+           Returns: List of dicts {'file_id': str, 'file_name': str, 'page_count': int}
+        """
+        files = []
+        seen_ids = set()
+
+        # Determine order based on the first occurrence of each file_id in page_order
+        # This assumes we want to present files based on where they start.
+        # If pages are mixed, this will still extract unique files.
+        for _, fname, fid in self.page_order:
+            if fid not in seen_ids:
+                seen_ids.add(fid)
+                # Count pages for this file
+                count = sum(1 for item in self.page_order if item[2] == fid)
+                files.append({'file_id': fid, 'file_name': fname, 'page_count': count})
+
+        return files
+
+    def reorder_file(self, file_id, new_index):
+        """Moves all pages associated with file_id to a position corresponding to new_index in the file list."""
+        current_files = self.get_files_in_order()
+        if not (0 <= new_index < len(current_files)):
+            return
+
+        # Identify the file being moved
+        target_file = next((f for f in current_files if f['file_id'] == file_id), None)
+        if not target_file:
+            return
+
+        # Remove from current list and insert at new index to get target file order
+        current_files_list = [f['file_id'] for f in current_files]
+        current_idx = current_files_list.index(file_id)
+        current_files_list.pop(current_idx)
+        current_files_list.insert(new_index, file_id)
+
+        # Reconstruct page_order based on new file order
+        new_page_order = []
+
+        # Group current pages by file_id
+        pages_by_file = {}
+        for item in self.page_order:
+            fid = item[2]
+            if fid not in pages_by_file:
+                pages_by_file[fid] = []
+            pages_by_file[fid].append(item)
+
+        # Append pages in the new file order
+        for fid in current_files_list:
+            if fid in pages_by_file:
+                new_page_order.extend(pages_by_file[fid])
+
+        self.page_order = new_page_order
+
     def get_thumbnail(self, page_index, scale=0.3):
         original_index, _, _ = self.page_order[page_index]
 

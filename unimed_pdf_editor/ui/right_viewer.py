@@ -18,7 +18,7 @@ class RightViewer(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # 1. Image Area (Scroll Area)
+        # 1. Image Area (Scroll Area) - No top toolbar actions
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setAlignment(Qt.AlignmentFlag.AlignCenter)

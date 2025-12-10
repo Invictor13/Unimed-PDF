@@ -29,20 +29,20 @@ class LeftPanel(QFrame):
         group_style = f"QGroupBox {{ color: {COLOR_TEXT_LIGHT}; border: 1px solid #444444; margin-top: 10px; }} QGroupBox::title {{ subcontrol-origin: margin; left: 10px; padding: 0 3px; }}"
 
         # File Operations
-        self.btn_load = self.create_button("⬆️ Carregar", "Carregar novo PDF(s) para a sessão", "load_pdf")
+        self.btn_load = self.create_button("⬆️", "Carregar PDFs", "load_pdf")
         # Fix: Connect specific slot for load to open dialog
         self.btn_load.clicked.disconnect()
         self.btn_load.clicked.connect(self.on_load_clicked)
         layout.addWidget(self.btn_load)
 
         # Actions
-        self.btn_merge = self.create_button("➕ Unificar", "Unificar todos os PDFs/Páginas no Canvas", "merge")
+        self.btn_merge = self.create_button("➕", "Unificar PDFs", "merge")
         layout.addWidget(self.btn_merge)
 
-        self.btn_split = self.create_button("✂️ Separar", "Separar páginas selecionadas em novo PDF", "split")
+        self.btn_split = self.create_button("✂️", "Separar Páginas Selecionadas", "split")
         layout.addWidget(self.btn_split)
 
-        self.btn_ocr = self.create_button("🔍 OCR", "Tornar PDF Pesquisável (Reconhecimento de Texto)", "ocr")
+        self.btn_ocr = self.create_button("🔍", "Executar OCR (Texto Pesquisável)", "ocr")
         layout.addWidget(self.btn_ocr)
 
         # Compression Group
@@ -50,34 +50,34 @@ class LeftPanel(QFrame):
         group_compress.setStyleSheet(group_style)
         layout_compress = QVBoxLayout(group_compress)
 
-        self.btn_compress_low = self.create_button("⬇️ Baixa", "Compactação Leve (Estrutura)", "compress", "low")
+        self.btn_compress_low = self.create_button("⬇️", "Compactação Baixa (Estrutura)", "compress", "low")
         layout_compress.addWidget(self.btn_compress_low)
 
-        self.btn_compress_high = self.create_button("⬇️ Alta", "Compactação Alta (Imagem e Estrutura)", "compress", "high")
+        self.btn_compress_high = self.create_button("📉", "Compactação Alta (Otimizar Imagens)", "compress", "high")
         layout_compress.addWidget(self.btn_compress_high)
         layout.addWidget(group_compress)
 
         # Selection Input
         layout.addStretch()
-        label_selecao = QLabel("Seleção Manual (ex: 1, 3-5):")
+        label_selecao = QLabel("Seleção Manual:")
         label_selecao.setStyleSheet(f"color: {COLOR_TEXT_LIGHT}; margin-top: 15px;")
         layout.addWidget(label_selecao)
 
         self.input_selection = QLineEdit()
-        self.input_selection.setPlaceholderText("1, 3-5")
+        self.input_selection.setPlaceholderText("Ex: 1, 3-5")
         self.input_selection.textChanged.connect(self.on_range_input_changed)
         layout.addWidget(self.input_selection)
 
         # QoL and Deletion
-        self.btn_rotate = self.create_button("🔄 Rotacionar", "Rotacionar Páginas Selecionadas (90°)", "rotate_selected")
+        self.btn_rotate = self.create_button("🔄", "Rotacionar Páginas Selecionadas (90°)", "rotate_selected")
         layout.addWidget(self.btn_rotate)
 
-        self.btn_clear = self.create_button("🧹 Limpar", "Limpar Sessão (Excluir tudo no Canvas)", "clear_session")
+        self.btn_clear = self.create_button("🧹", "Limpar Sessão", "clear_session")
         # Usando um estilo local para anular o verde do botão principal
         self.btn_clear.setStyleSheet(BUTTON_STYLE + f"QPushButton {{ background-color: #444444; box-shadow: 0 4px #333333; }} QPushButton:hover {{ background-color: #333333; box-shadow: 0 5px #222222; }}")
         layout.addWidget(self.btn_clear)
 
-        self.btn_delete = self.create_button("❌ Excluir", "Excluir Páginas Selecionadas", "delete")
+        self.btn_delete = self.create_button("❌", "Excluir Seleção", "delete")
         self.btn_delete.setObjectName("DeleteButton")
         layout.addWidget(self.btn_delete)
 

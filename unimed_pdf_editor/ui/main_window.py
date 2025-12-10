@@ -29,8 +29,8 @@ class Header(QFrame):
 
         layout.addStretch()
 
-        title = QLabel("Editor PDF Unimed - Braço Direito")
-        title.setStyleSheet("font-size: 20px; font-weight: 500; color: #333333; border: none;")
+        title = QLabel("UNIMED - Editor de PDF")
+        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #009A3E; border: none;")
         layout.addWidget(title)
 
 class LoadingDialog(QProgressDialog):
@@ -126,15 +126,39 @@ class MainWindow(QMainWindow):
         self.right_viewer = RightViewer(self)
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
-        self.splitter.addWidget(self.center_canvas)
-        self.splitter.addWidget(self.right_viewer)
+
+        # Wrapping Canvas and Viewer with Titles
+        self.splitter.addWidget(self.create_pane("Canvas de Edição", self.center_canvas))
+        self.splitter.addWidget(self.create_pane("Visualização Unitária", self.right_viewer))
 
         self.splitter.setCollapsible(1, True)
-        self.splitter.setStretchFactor(0, 3)
+        # 50/50 Balance
+        self.splitter.setStretchFactor(0, 1)
         self.splitter.setStretchFactor(1, 1)
 
         content_layout.addWidget(self.left_panel)
         content_layout.addWidget(self.splitter)
+
+    def create_pane(self, title_text, widget):
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        header = QLabel(title_text)
+        header.setStyleSheet("""
+            background-color: #F0F0F0;
+            color: #333333;
+            font-weight: bold;
+            padding: 8px;
+            border-bottom: 1px solid #CCCCCC;
+            font-size: 14px;
+        """)
+        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        layout.addWidget(header)
+        layout.addWidget(widget)
+        return container
 
         main_layout.addWidget(content_widget) # Adiciona o corpo ao layout principal
 
