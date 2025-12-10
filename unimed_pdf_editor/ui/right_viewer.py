@@ -1,7 +1,7 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea, QPushButton, QHBoxLayout, QFrame, QSizePolicy
-from PyQt6.QtGui import QPixmap, QImage, QIcon
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea, QPushButton, QHBoxLayout, QFrame
+from PyQt6.QtGui import QPixmap, QImage
 from PyQt6.QtCore import Qt, pyqtSignal
-from .styles import COLOR_SECONDARY, COLOR_PRIMARY
+from .styles import COLOR_PRIMARY
 
 class RightViewer(QWidget):
     action_triggered = pyqtSignal(str, object)
@@ -10,43 +10,19 @@ class RightViewer(QWidget):
         super().__init__()
         self.main_window = main_window
         self.current_page_index = None
+        self.setObjectName("RightViewer") # Used for white background in styles.py
         self.init_ui()
 
     def init_ui(self):
-        # Background color update
-        self.setStyleSheet(f"background-color: {COLOR_SECONDARY};") # or white
-
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Removed Top Actions Bar (except navigation if needed, but thumbnails handle nav)
-        # Assuming nav buttons are not strictly required if thumbnails are present,
-        # or we can put nav in footer?
-        # Requirement: "Remover os botões de ação atuais do topo (exceto navegação)."
-        # Let's keep a simple header or overlay for navigation if needed, but
-        # usually scrolling or clicking thumbnails is enough.
-        # Let's verify if "navegação" means "Next/Prev" buttons.
-        # If so, I will add them to the footer or a small header.
-        # I'll put a small header for navigation info (Page X of Y).
-
-        self.header_nav = QFrame()
-        self.header_nav.setFixedHeight(40)
-        self.header_nav.setStyleSheet("background-color: white; border-bottom: 1px solid #E0E0E0;")
-        nav_layout = QHBoxLayout(self.header_nav)
-        nav_layout.setContentsMargins(10, 0, 10, 0)
-
-        self.lbl_page_info = QLabel("Nenhuma página selecionada")
-        self.lbl_page_info.setStyleSheet("color: #666666; font-weight: bold;")
-        nav_layout.addWidget(self.lbl_page_info)
-
-        main_layout.addWidget(self.header_nav)
-
-        # Image Area
+        # 1. Image Area (Scroll Area)
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.scroll_area.setStyleSheet("background-color: #F9F9F9; border: none;")
+        self.scroll_area.setStyleSheet("background-color: white; border: none;")
 
         self.image_label = QLabel()
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -54,72 +30,82 @@ class RightViewer(QWidget):
 
         main_layout.addWidget(self.scroll_area)
 
-        # Footer Actions
+        # 2. Footer Actions (Rodapé)
         self.footer = QFrame()
         self.footer.setFixedHeight(60)
-        self.footer.setStyleSheet("background-color: white; border-top: 1px solid #E0E0E0;")
+        self.footer.setStyleSheet("background-color: #F0F0F0; border-top: 1px solid #CCCCCC;")
         footer_layout = QHBoxLayout(self.footer)
         footer_layout.setContentsMargins(20, 10, 20, 10)
-        footer_layout.setSpacing(20)
+        footer_layout.setSpacing(15)
 
-        # Download Button
-        self.btn_download = QPushButton(" Baixar Página")
-        self.btn_download.setIcon(QIcon.fromTheme("document-save")) # Fallback if theme not present
-        # Or better, text with unicode arrow if icon not available, but user asked for icons.
-        # I will use text with emoji in label for simplicity if assets are missing.
-        self.btn_download.setText("⬇️ Baixar Página")
-        self.btn_download.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_download.setStyleSheet(f"""
-            QPushButton {{
-                background-color: white;
-                color: {COLOR_PRIMARY};
-                border: 2px solid {COLOR_PRIMARY};
-                border-radius: 5px;
-                font-weight: bold;
-                padding: 5px 15px;
-            }}
-            QPushButton:hover {{
-                background-color: {COLOR_PRIMARY};
-                color: white;
-            }}
-        """)
-        self.btn_download.clicked.connect(lambda: self.action_triggered.emit("download_page", None))
-        footer_layout.addWidget(self.btn_download)
+        # Page Info
+        self.lbl_page_info = QLabel("Nenhuma página selecionada")
+        self.lbl_page_info.setStyleSheet("font-weight: bold; color: #333333;")
+        footer_layout.addWidget(self.lbl_page_info)
 
-        # Delete Button
-        self.btn_delete = QPushButton("🗑️ Excluir Página")
-        self.btn_delete.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_delete.setStyleSheet("""
-            QPushButton {
-                background-color: white;
-                color: #CC0000;
-                border: 2px solid #CC0000;
-                border-radius: 5px;
-                font-weight: bold;
-                padding: 5px 15px;
-            }
-            QPushButton:hover {
-                background-color: #CC0000;
-                color: white;
-            }
-        """)
-        self.btn_delete.clicked.connect(lambda: self.action_triggered.emit("delete_page", None))
+        # Navigation Buttons (Setas para navegação rápida)
+        btn_prev = self.create_nav_button("◀️", "Página Anterior", self.prev_page)
+        btn_next = self.create_nav_button("▶️", "Próxima Página", self.next_page)
+
+        footer_layout.addWidget(btn_prev)
+        footer_layout.addWidget(btn_next)
+
+        footer_layout.addStretch()
+
+        # Download Button (Individual PDF)
+        self.btn_download_pdf = self.create_action_button("⬇️ PDF", "Baixar Página como PDF", lambda: self.action_triggered.emit("download_page", "pdf"))
+        self.btn_download_pdf.setStyleSheet(self.btn_download_pdf.styleSheet().replace("min-width: 100px", "min-width: 80px"))
+        footer_layout.addWidget(self.btn_download_pdf)
+
+        # Download Button (Individual Image)
+        self.btn_download_img = self.create_action_button("🖼️ PNG", "Baixar Página como Imagem PNG", lambda: self.action_triggered.emit("download_page", "png"))
+        self.btn_download_img.setStyleSheet(self.btn_download_img.styleSheet().replace("min-width: 100px", "min-width: 80px"))
+        footer_layout.addWidget(self.btn_download_img)
+
+        # Delete Button (Individual)
+        self.btn_delete = self.create_action_button("🗑️ Excluir", "Excluir Página Atual", lambda: self.action_triggered.emit("delete_page", None))
+        self.btn_delete.setObjectName("DeleteButton") # Usa o estilo de alerta global
+        self.btn_delete.setStyleSheet(self.btn_delete.styleSheet().replace("min-width: 100px", "min-width: 80px"))
         footer_layout.addWidget(self.btn_delete)
 
         main_layout.addWidget(self.footer)
 
-        # Initially hide footer if no page?
+        # Initially hide footer
         self.footer.hide()
+
+    def create_nav_button(self, icon_text, tooltip, slot):
+        # Botões de navegação menores e mais discretos
+        btn = QPushButton(icon_text)
+        btn.setFixedSize(40, 30)
+        btn.setToolTip(tooltip)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setStyleSheet("font-size: 16px; padding: 0px; box-shadow: none; margin: 0px; background-color: #E0E0E0; color: #333333; border: 1px solid #CCCCCC;")
+        btn.clicked.connect(slot)
+        return btn
+
+    def create_action_button(self, text, tooltip, slot):
+        # Usando o estilo global de QPushButton
+        btn = QPushButton(text)
+        btn.setToolTip(tooltip)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.clicked.connect(slot)
+        return btn
 
     def load_page(self, index):
         self.current_page_index = index
         try:
-            # High res image for viewer
-            img_data = self.main_window.pdf_manager.get_thumbnail(index, scale=2.0)
+            # High res image for viewer (usando a função otimizada)
+            img_data = self.main_window.pdf_manager.get_page_image(index, scale=2.0)
             image = QImage.fromData(img_data)
             pixmap = QPixmap.fromImage(image)
 
+            # Escala dinâmica
+            w = self.scroll_area.width() - 40
+            if pixmap.width() > w:
+                pixmap = pixmap.scaledToWidth(w, Qt.TransformationMode.SmoothTransformation)
+
             self.image_label.setPixmap(pixmap)
+            self.image_label.adjustSize()
 
             total = self.main_window.pdf_manager.get_page_count()
             self.lbl_page_info.setText(f"Página {index + 1} de {total}")
@@ -134,3 +120,12 @@ class RightViewer(QWidget):
         self.lbl_page_info.setText("Nenhuma página selecionada")
         self.current_page_index = None
         self.footer.hide()
+
+    def prev_page(self):
+        if self.current_page_index is not None and self.current_page_index > 0:
+            self.load_page(self.current_page_index - 1)
+
+    def next_page(self):
+        total = self.main_window.pdf_manager.get_page_count()
+        if self.current_page_index is not None and self.current_page_index < total - 1:
+            self.load_page(self.current_page_index + 1)
