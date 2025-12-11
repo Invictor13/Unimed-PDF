@@ -58,7 +58,7 @@ class RightViewer(QWidget):
 
         footer_layout.addStretch()
 
-        # Rotation Button
+        # Rotation Button (NOVO)
         self.btn_rotate = self.create_action_button("🔄 Rotacionar", "Rotacionar Página Atual (90°)", lambda: self.action_triggered.emit("rotate_page", None))
         footer_layout.addWidget(self.btn_rotate)
 

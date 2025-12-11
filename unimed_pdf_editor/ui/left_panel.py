@@ -17,7 +17,7 @@ class LeftPanel(QFrame):
         btn.setToolTip(tooltip)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        # SOLUÇÃO DE CONTRASTE: Tamanho da fonte ajustado. A cor branca vem do BUTTON_STYLE global.
+        # SOLUÇÃO DE CONTRASTE: Mantém font-size: 20px; confiando no estilo global para a cor (branca).
         btn.setStyleSheet("font-size: 20px;")
 
         if connect_default:
@@ -33,6 +33,7 @@ class LeftPanel(QFrame):
         group_style = f"QGroupBox {{ color: {COLOR_TEXT_LIGHT}; border: 1px solid #444444; margin-top: 10px; }} QGroupBox::title {{ subcontrol-origin: margin; left: 10px; padding: 0 3px; }}"
 
         # File Operations
+        # Corrigido para usar connect_default=False para controle de conexão local
         self.btn_load = self.create_button("⬆️", "Carregar PDFs", "load_pdf", connect_default=False)
         self.btn_load.clicked.connect(self.on_load_clicked)
         layout.addWidget(self.btn_load)

@@ -68,12 +68,19 @@ class LoadingDialog(QProgressDialog):
         """)
 
     def set_progress(self, current, total):
+        # Transforma o dialog de indeterminado (0,0) para determinístico na primeira atualização.
         if self.maximum() == 0 and total > 0:
             self.setRange(0, total)
+
+        # Atualiza a mensagem para mostrar o progresso real (ex: "Executando OCR... (5/10)")
+        base_text = self.labelText().split('(')[0].strip()
+        self.setLabelText(f"{base_text} ({current}/{total})")
 
         self.setValue(current)
 
     def update_progress(self, current, total):
+        # Essencial para que a UI se atualize e não trave durante o processo
+        QApplication.processEvents()
         self.set_progress(current, total)
 
 class Worker(QObject):
@@ -90,7 +97,12 @@ class Worker(QObject):
 
     def run(self):
         try:
-            result = self.func(*self.args, **self.kwargs)
+            # NOVO: Lógica clara para injetar o callback de progresso na função principal.
+            if 'progress_callback' in self.kwargs:
+                 # Chama a função principal (ex: ocr.make_searchable) passando o progress.emit como callback
+                 result = self.func(*self.args, progress_callback=self.kwargs['progress_callback'])
+            else:
+                 result = self.func(*self.args, **self.kwargs)
             self.finished.emit(result)
         except Exception as e:
             self.error.emit(str(e))
@@ -225,17 +237,19 @@ class MainWindow(QMainWindow):
             self.delete_single_page_from_viewer()
         elif action == "download_page":
             self.export_single_page(data)
-        elif action == "rotate_page":
+        elif action == "rotate_page": # NOVO: Ação para o botão de rotação unitária
             self.rotate_single_page_from_viewer()
 
-    def rotate_single_page_from_viewer(self):
+    def rotate_single_page_from_viewer(self): # NOVO MÉTODO
         idx = self.right_viewer.current_page_index
         if idx is not None:
-             self.show_loading("Rotacionando...")
+             self.show_loading("Rotacionando página...")
+
              def task():
                  self.pdf_manager.rotate_page(idx, 90)
 
              def success(_):
+                 # Recarrega a página no viewer e atualiza as miniaturas
                  self.right_viewer.load_page(idx)
                  self.center_canvas.refresh_thumbnails()
 
@@ -317,26 +331,15 @@ class MainWindow(QMainWindow):
     def execute_task(self, func, *args, success_callback=None, with_progress=False, **kwargs):
         self.thread = QThread()
 
-        # If progress is needed, we wrap the function to inject the progress callback
-        # But we can't easily do that here before creating the Worker if func is expecting it
-        # as part of *args or we need to pass it.
-        # Instead, we handle it by passing `progress_callback` to the kwargs if requested.
+        # O Worker precisa ser criado com o progress_callback nos seus kwargs se for para ter progresso.
+        kwargs_with_progress = kwargs.copy()
+        worker = Worker(func, *args, **kwargs_with_progress)
 
         if with_progress:
-            # We create a wrapper that will receive the worker instance later? No.
-            # We assume 'func' accepts 'progress_callback' kwarg or we pass a wrapper.
-            # Best approach: pass a lambda that calls func with progress_callback
-            pass
+             # Injeta o emitter do worker nos kwargs para ser usado dentro do Worker.run
+             worker.kwargs['progress_callback'] = worker.progress.emit
 
-        self.worker = Worker(func, *args, **kwargs)
-
-        if with_progress:
-             # We inject the emitter into the kwargs of the worker
-             # But the worker is already initialized with args/kwargs.
-             # We need to rebuild the worker init logic or modify it.
-             # Let's override the kwargs
-             self.worker.kwargs['progress_callback'] = self.worker.progress.emit
-
+        self.worker = worker # Armazena a referência
         self.worker.moveToThread(self.thread)
 
         self.thread.started.connect(self.worker.run)
@@ -352,6 +355,7 @@ class MainWindow(QMainWindow):
         self.worker.error.connect(self.hide_loading)
 
         if with_progress:
+            # Conecta o sinal de progresso do worker ao update_progress do dialog
             self.worker.progress.connect(self.loading_dialog.update_progress)
 
         self.thread.start()
@@ -425,6 +429,7 @@ class MainWindow(QMainWindow):
 
         output_path, _ = QFileDialog.getSaveFileName(self, "Salvar PDF Pesquisável", "ocr.pdf", "PDF Files (*.pdf)")
         if output_path:
+            # Passa a mensagem base. O dialog se encarrega do (0/0)
             self.show_loading("Executando OCR...")
 
             def task(progress_callback):
@@ -437,4 +442,5 @@ class MainWindow(QMainWindow):
                 else:
                      QMessageBox.critical(self, "Erro", f"Falha no OCR: {msg}")
 
+            # Define with_progress=True para conectar o sinal de progresso.
             self.execute_task(task, success_callback=success, with_progress=True)

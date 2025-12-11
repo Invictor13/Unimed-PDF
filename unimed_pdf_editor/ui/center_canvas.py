@@ -316,15 +316,15 @@ class CenterCanvas(QWidget):
 
         self.container.mode = mode
 
-        # Update layout
-        # Clean current layout using the helper method
-        self._clear_layout(self.container.layout())
-
-        # Detach old layout reliably using the QWidget().setLayout() trick
+        # --- CORREÇÃO CRÍTICA DE LAYOUT ---
         old_layout = self.container.layout()
-        if old_layout:
-             QWidget().setLayout(old_layout)
 
+        # 1. Limpa os widgets internos e DESANEXA o layout antigo de forma robusta.
+        if old_layout:
+             self._clear_layout(old_layout)
+             self.container.setLayout(None) # O comando mágico para o PyQt6!
+
+        # 2. Anexar o NOVO layout.
         if mode == 'pages':
             self.grid_layout = QGridLayout(self.container)
             self.grid_layout.setSpacing(20)
