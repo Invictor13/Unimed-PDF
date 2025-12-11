@@ -1,3 +1,4 @@
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QGroupBox, QFileDialog, QFrame, QMessageBox, QInputDialog
 )
@@ -16,7 +17,8 @@ class LeftPanel(QFrame):
         btn = QPushButton(icon)
         btn.setToolTip(tooltip)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setStyleSheet("font-size: 18px;") # Force size for icon/emoji
+        # Força o tamanho e usa o estilo global de cor
+        btn.setStyleSheet("font-size: 20px; font-weight: normal;")
         btn.clicked.connect(lambda: self.action_triggered.emit(action_name, data))
         return btn
 
@@ -30,7 +32,6 @@ class LeftPanel(QFrame):
 
         # File Operations
         self.btn_load = self.create_button("⬆️", "Carregar PDFs", "load_pdf")
-        # Fix: Connect specific slot for load to open dialog
         self.btn_load.clicked.disconnect()
         self.btn_load.clicked.connect(self.on_load_clicked)
         layout.addWidget(self.btn_load)
@@ -50,6 +51,7 @@ class LeftPanel(QFrame):
         group_compress.setStyleSheet(group_style)
         layout_compress = QVBoxLayout(group_compress)
 
+        # Ícones de compactação corrigidos
         self.btn_compress_low = self.create_button("⬇️", "Compactação Baixa (Estrutura)", "compress", "low")
         layout_compress.addWidget(self.btn_compress_low)
 
@@ -73,18 +75,17 @@ class LeftPanel(QFrame):
         layout.addWidget(self.btn_rotate)
 
         self.btn_clear = self.create_button("🧹", "Limpar Sessão", "clear_session")
-        # Usando um estilo local para anular o verde do botão principal
-        # REMOVIDO: box-shadow
-        self.btn_clear.setStyleSheet(BUTTON_STYLE + f"QPushButton {{ background-color: #444444; }} QPushButton:hover {{ background-color: #333333; }}")
+        # Estilo neutro corrigido (Dark Gray)
+        self.btn_clear.setStyleSheet(f"QPushButton {{ background-color: #444444; color: white; }} QPushButton:hover {{ background-color: #333333; }}")
         layout.addWidget(self.btn_clear)
 
+        # Botão de exclusão (Mantido para exclusão em massa/lote)
         self.btn_delete = self.create_button("❌", "Excluir Seleção", "delete")
         self.btn_delete.setObjectName("DeleteButton")
         layout.addWidget(self.btn_delete)
 
-    # (Mantenha as funções lógicas de manipulação de seleção)
+    # (Mantenha as funções lógicas de manipulação de seleção on_load_clicked, on_range_input_changed, update_selection_input)
     def on_load_clicked(self):
-        # Usando QFileDialog, que precisa ser importado aqui
         from PyQt6.QtWidgets import QFileDialog
         files, _ = QFileDialog.getOpenFileNames(self, "Selecionar PDFs", "", "PDF Files (*.pdf)")
         if files:
@@ -120,7 +121,6 @@ class LeftPanel(QFrame):
         self.action_triggered.emit("select_pages", list(indices))
 
     def update_selection_input(self, selected_indices):
-        # Função complexa de 0-based to 1-based (MANTIDA DO ORIGINAL)
         from PyQt6.QtCore import QCoreApplication
 
         self.input_selection.blockSignals(True)
@@ -144,7 +144,7 @@ class LeftPanel(QFrame):
                     else:
                         ranges.append(f"{start}-{end}")
                     start = indices[i]
-                    end = i
+                    end = start
 
             if start == end:
                 ranges.append(str(start))

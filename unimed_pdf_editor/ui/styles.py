@@ -8,11 +8,11 @@ COLOR_TEXT = "#333333"      # Texto escuro para conteúdo
 COLOR_TEXT_LIGHT = "white"  # Texto claro para fundo escuro
 
 # Estilo de Botão (Flat Elegante e Estável)
-# REMOVIDO: transitions, box-shadow, transforms para estabilidade máxima
+# REMOVIDO: box-shadow, transform, margin complexos.
 BUTTON_STYLE = f"""
     QPushButton {{
         background-color: {COLOR_PRIMARY};
-        color: white;
+        color: white; /* GARANTIA DE CONTRASTE */
         border: none;
         padding: 10px 10px;
         border-radius: 4px;
@@ -38,7 +38,7 @@ BUTTON_STYLE = f"""
     }}
 """
 
-# Estilos Gerais (MANTIDOS)
+# Estilos Gerais
 STYLESHEET = f"""
     QMainWindow {{
         background-color: {COLOR_DARK};

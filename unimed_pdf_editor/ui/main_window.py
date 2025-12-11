@@ -1,3 +1,4 @@
+
 from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QFrame, QSplitter, QFileDialog, QMessageBox, QProgressDialog, QApplication, QLabel, QInputDialog
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
 from PyQt6.QtGui import QPixmap, QIcon
@@ -67,6 +68,7 @@ class LoadingDialog(QProgressDialog):
         """)
 
 class Worker(QObject):
+    # (MANTIDO DO ORIGINAL)
     finished = pyqtSignal(object)
     error = pyqtSignal(str)
 
@@ -148,8 +150,8 @@ class MainWindow(QMainWindow):
 
         self.splitter.setCollapsible(1, True)
 
-        # Balanço 50/50 (Reforçado para clareza e estabilidade)
-        self.splitter.setSizes([1, 1]) # Força recalculo baseado em stretch
+        # Balanço 50/50
+        self.splitter.setSizes([1, 1])
         self.splitter.setStretchFactor(0, 1)
         self.splitter.setStretchFactor(1, 1)
 
@@ -165,7 +167,7 @@ class MainWindow(QMainWindow):
         self.center_canvas.request_viewer.connect(self.open_viewer)
         self.right_viewer.action_triggered.connect(self.handle_viewer_action)
 
-    # (MANTENHA TODAS AS FUNÇÕES AUXILIARES E DE AÇÃO ABAIXO)
+    # (MANTENHA O RESTANTE DAS FUNÇÕES AUXILIARES E DE AÇÃO)
     def handle_action(self, action_name, data=None):
         if action_name == "load_pdf":
             self.load_pdf(data)
