@@ -1,3 +1,4 @@
+
 # Cores Institucionais Unimed
 COLOR_PRIMARY = "#009A3E"   # Verde Unimed
 COLOR_ALERT = "#CC0000"     # Vermelho Excluir
@@ -6,7 +7,7 @@ COLOR_BACKGROUND = "#F9F9F9" # Fundo Claro para Conteúdo (Canvas)
 COLOR_TEXT = "#333333"      # Texto escuro para conteúdo
 COLOR_TEXT_LIGHT = "white"  # Texto claro para fundo escuro
 
-# Estilo de Botão (Sólido Verde com Animação 3D)
+# Estilo de Botão (Flat Elegante e Estável)
 BUTTON_STYLE = f"""
     QPushButton {{
         background-color: {COLOR_PRIMARY};
@@ -15,41 +16,30 @@ BUTTON_STYLE = f"""
         padding: 10px 10px;
         border-radius: 4px;
         font-weight: bold;
-        box-shadow: 0 4px #007A30;
-        margin-bottom: 4px;
         min-height: 30px;
         min-width: 100px;
         font-size: 16px;
-        transition: all 0.2s ease;
+        transition: background-color 0.2s ease;
     }}
     QPushButton:hover {{
         background-color: #007A30;
-        box-shadow: 0 5px #005F25;
-        margin-bottom: 3px;
-        transform: translateY(-1px);
     }}
     QPushButton:pressed {{
         background-color: #005F25;
-        box-shadow: 0 0 #005F25;
-        margin-top: 4px;
-        margin-bottom: 0px;
-        transform: translateY(0px);
+        /* Remover transform/box-shadow */
     }}
     QPushButton#DeleteButton {{
         background-color: {COLOR_ALERT};
-        box-shadow: 0 4px #AA0000;
     }}
     QPushButton#DeleteButton:hover {{
         background-color: #AA0000;
-        box-shadow: 0 5px #880000;
     }}
     QPushButton#DeleteButton:pressed {{
         background-color: #880000;
-        box-shadow: 0 0 #880000;
     }}
 """
 
-# Estilos Gerais
+# Estilos Gerais (MANTIDOS)
 STYLESHEET = f"""
     QMainWindow {{
         background-color: {COLOR_DARK};
