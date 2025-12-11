@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QFrame, QSplitter, QFileDialog, QMessageBox, QProgressDialog, QApplication, QLabel, QInputDialog
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
 from PyQt6.QtGui import QPixmap, QIcon
-from .styles import STYLESHEET
+from .styles import STYLESHEET, COLOR_PRIMARY
 from .left_panel import LeftPanel
 from .center_canvas import CenterCanvas
 from .right_viewer import RightViewer
@@ -12,26 +12,24 @@ class Header(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(70)
-        # Usando fundo branco para o header e verde na borda para destacar o branding
         self.setStyleSheet("background-color: white; border-bottom: 2px solid #009A3E;")
         layout = QHBoxLayout(self)
         layout.setContentsMargins(20, 5, 20, 5)
 
-        # Logo (Refatorado para ser o primeiro elemento)
+        # Logo
         logo_label = QLabel()
         logo_path = os.path.join("assets", "logo.png")
         if os.path.exists(logo_path):
              pixmap = QPixmap(logo_path)
              if not pixmap.isNull():
-                 # Tamanho maior no header
                  logo_label.setPixmap(pixmap.scaled(180, 50, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         layout.addWidget(logo_label)
 
-        layout.addStretch()
-
         title = QLabel("UNIMED - Editor de PDF")
-        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #009A3E; border: none;")
+        title.setStyleSheet(f"font-size: 20px; font-weight: bold; color: {COLOR_PRIMARY}; border: none;")
         layout.addWidget(title)
+
+        layout.addStretch()
 
 class LoadingDialog(QProgressDialog):
     # (MANTIDO DO ORIGINAL)
@@ -69,7 +67,6 @@ class LoadingDialog(QProgressDialog):
         """)
 
 class Worker(QObject):
-    # (MANTIDO DO ORIGINAL)
     finished = pyqtSignal(object)
     error = pyqtSignal(str)
 
@@ -86,24 +83,43 @@ class Worker(QObject):
         except Exception as e:
             self.error.emit(str(e))
 
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Editor PDF Unimed")
+        self.setWindowTitle("UNIMED - Editor de PDF")
         self.resize(1200, 800)
-
-        # APLICANDO ESTILOS
         self.setStyleSheet(STYLESHEET)
-
         self.pdf_manager = PDFManager()
-
         self.init_ui()
+
+    def create_pane_with_title(self, title_text, widget):
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        header = QLabel(title_text)
+        header.setStyleSheet("""
+            background-color: #E0E0E0;
+            color: #333333;
+            font-weight: bold;
+            padding: 8px;
+            border-bottom: 1px solid #CCCCCC;
+            font-size: 14px;
+            min-height: 30px;
+        """)
+        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        layout.addWidget(header)
+        layout.addWidget(widget)
+        return container
 
     def init_ui(self):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
-        main_layout = QVBoxLayout(central_widget) # Layout principal vertical (Header + Corpo)
+        main_layout = QVBoxLayout(central_widget)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
@@ -111,9 +127,8 @@ class MainWindow(QMainWindow):
         self.header = Header(self)
         main_layout.addWidget(self.header)
 
-        # 2. CORPO (Lateral + Splitter)
-        content_widget = QWidget()
-        content_layout = QHBoxLayout(content_widget)
+        # 2. CORPO (Horizontal Splitter)
+        content_layout = QHBoxLayout()
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(0)
 
@@ -127,40 +142,21 @@ class MainWindow(QMainWindow):
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # Wrapping Canvas and Viewer with Titles
-        self.splitter.addWidget(self.create_pane("Canvas de Edição", self.center_canvas))
-        self.splitter.addWidget(self.create_pane("Visualização Unitária", self.right_viewer))
+        # Adicionando o Center Canvas e o Right Viewer com seus respectivos títulos
+        self.splitter.addWidget(self.create_pane_with_title("Canvas de Edição", self.center_canvas))
+        self.splitter.addWidget(self.create_pane_with_title("Visualização Unitária", self.right_viewer))
 
         self.splitter.setCollapsible(1, True)
-        # 50/50 Balance
+
+        # Balanço 50/50
+        self.splitter.setSizes([600, 600])
         self.splitter.setStretchFactor(0, 1)
         self.splitter.setStretchFactor(1, 1)
 
         content_layout.addWidget(self.left_panel)
         content_layout.addWidget(self.splitter)
 
-    def create_pane(self, title_text, widget):
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        header = QLabel(title_text)
-        header.setStyleSheet("""
-            background-color: #F0F0F0;
-            color: #333333;
-            font-weight: bold;
-            padding: 8px;
-            border-bottom: 1px solid #CCCCCC;
-            font-size: 14px;
-        """)
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        layout.addWidget(header)
-        layout.addWidget(widget)
-        return container
-
-        main_layout.addWidget(content_widget) # Adiciona o corpo ao layout principal
+        main_layout.addLayout(content_layout)
 
         # Connect signals
         self.left_panel.action_triggered.connect(self.handle_action)

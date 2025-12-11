@@ -1,8 +1,8 @@
 from PyQt6.QtWidgets import (
-    QWidget, QScrollArea, QGridLayout, QVBoxLayout, QApplication, QLabel, QHBoxLayout, QFrame, QPushButton, QGraphicsOpacityEffect
+    QWidget, QScrollArea, QGridLayout, QVBoxLayout, QApplication, QLabel, QHBoxLayout, QFrame, QPushButton
 )
-from PyQt6.QtCore import pyqtSignal, Qt, QMimeData, QPoint, QTimer, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QDrag, QPixmap, QImage, QPainter
+from PyQt6.QtCore import pyqtSignal, Qt, QMimeData, QPoint, QTimer
+from PyQt6.QtGui import QDrag, QPixmap, QImage
 from .widgets.thumbnail import Thumbnail
 import os
 
@@ -170,7 +170,7 @@ class ContainerWidget(QWidget):
             file_id = self.docs_ref[source_index].file_info['file_id']
             self.doc_order_changed.emit(file_id, target_index)
 
-
+# CLASSE DE ESTADO VAZIO SIMPLIFICADA (ESTÁVEL)
 class EmptyState(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -179,46 +179,24 @@ class EmptyState(QFrame):
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setSpacing(20)
 
-        # Logo with Opacity Effect for Animation
-        self.logo_label = QLabel()
+        # Logo
+        logo_label = QLabel()
         logo_path = os.path.join("assets", "logo.png")
         if os.path.exists(logo_path):
              pixmap = QPixmap(logo_path)
              if not pixmap.isNull():
-                 self.logo_label.setPixmap(pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+                 logo_label.setPixmap(pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        layout.addWidget(logo_label, 0, Qt.AlignmentFlag.AlignCenter)
 
-        # Apply Opacity Effect
-        self.opacity_effect = QGraphicsOpacityEffect(self.logo_label)
-        self.logo_label.setGraphicsEffect(self.opacity_effect)
-        layout.addWidget(self.logo_label, 0, Qt.AlignmentFlag.AlignCenter)
-
-        msg_label = QLabel("Aguardando sinal...")
+        msg_label = QLabel("Aguardando PDF's")
         msg_label.setStyleSheet("font-size: 28px; color: #333333; font-weight: bold;")
         msg_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(msg_label)
 
-        sub_label = QLabel("Pode arrastar as miniaturas para reordenar.\nCarregue PDFs para começar.")
+        sub_label = QLabel("Clique em 'Carregar' ou arraste arquivos aqui.\n(Pode arrastar as miniaturas para reordenar)")
         sub_label.setStyleSheet("font-size: 18px; color: #666666;")
         sub_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(sub_label)
-
-        self.start_tuning_animation()
-
-    def start_tuning_animation(self):
-        self.anim = QPropertyAnimation(self.opacity_effect, b"opacity")
-        self.anim.setDuration(1500)
-        self.anim.setStartValue(0.4)
-        self.anim.setEndValue(1.0)
-        self.anim.setEasingCurve(QEasingCurve.Type.InOutSine)
-        self.anim.setLoopCount(-1) # Infinite loop
-
-        # To make it pulse back and forth, we need a SequentialAnimationGroup or just toggle direction?
-        # QPropertyAnimation loop usually restarts. Let's use KeyValueAt
-        self.anim.setKeyValueAt(0, 0.5)
-        self.anim.setKeyValueAt(0.5, 1.0)
-        self.anim.setKeyValueAt(1, 0.5)
-
-        self.anim.start()
 
 class CenterCanvas(QWidget):
     page_selected = pyqtSignal(list) # list of selected indices
