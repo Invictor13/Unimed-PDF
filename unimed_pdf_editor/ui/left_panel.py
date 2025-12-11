@@ -12,15 +12,16 @@ class LeftPanel(QFrame):
         self.setObjectName("LeftPanel") # Used for dark background in styles.py
         self.init_ui()
 
-    def create_button(self, icon, tooltip, action_name, data=None):
+    def create_button(self, icon, tooltip, action_name, data=None, connect_default=True):
         btn = QPushButton(icon)
         btn.setToolTip(tooltip)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        # SOLUÇÃO DE CONTRASTE: Forçar cor branca no texto do botão.
-        btn.setStyleSheet("font-size: 20px; color: white;")
+        # SOLUÇÃO DE CONTRASTE: Tamanho da fonte ajustado. A cor branca vem do BUTTON_STYLE global.
+        btn.setStyleSheet("font-size: 20px;")
 
-        btn.clicked.connect(lambda: self.action_triggered.emit(action_name, data))
+        if connect_default:
+            btn.clicked.connect(lambda: self.action_triggered.emit(action_name, data))
         return btn
 
     def init_ui(self):
@@ -32,8 +33,7 @@ class LeftPanel(QFrame):
         group_style = f"QGroupBox {{ color: {COLOR_TEXT_LIGHT}; border: 1px solid #444444; margin-top: 10px; }} QGroupBox::title {{ subcontrol-origin: margin; left: 10px; padding: 0 3px; }}"
 
         # File Operations
-        self.btn_load = self.create_button("⬆️", "Carregar PDFs", "load_pdf")
-        self.btn_load.clicked.disconnect()
+        self.btn_load = self.create_button("⬆️", "Carregar PDFs", "load_pdf", connect_default=False)
         self.btn_load.clicked.connect(self.on_load_clicked)
         layout.addWidget(self.btn_load)
 

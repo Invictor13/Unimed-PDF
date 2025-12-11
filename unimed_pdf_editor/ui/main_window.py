@@ -67,10 +67,17 @@ class LoadingDialog(QProgressDialog):
             }
         """)
 
+    def set_progress(self, current, total):
+        if self.maximum() == 0 and total > 0:
+            self.setRange(0, total)
+
+        self.setValue(current)
+
 class Worker(QObject):
     # (MANTIDO DO ORIGINAL)
     finished = pyqtSignal(object)
     error = pyqtSignal(str)
+    progress = pyqtSignal(int, int)
 
     def __init__(self, func, *args, **kwargs):
         super().__init__()
@@ -215,6 +222,21 @@ class MainWindow(QMainWindow):
             self.delete_single_page_from_viewer()
         elif action == "download_page":
             self.export_single_page(data)
+        elif action == "rotate_page":
+            self.rotate_current_viewer_page()
+
+    def rotate_current_viewer_page(self):
+        idx = self.right_viewer.current_page_index
+        if idx is not None:
+             self.show_loading("Rotacionando...")
+             def task():
+                 self.pdf_manager.rotate_page(idx, 90)
+
+             def success(_):
+                 self.right_viewer.load_page(idx)
+                 self.center_canvas.refresh_thumbnails()
+
+             self.execute_task(task, success_callback=success)
 
     def delete_single_page_from_viewer(self):
         idx = self.right_viewer.current_page_index
@@ -289,9 +311,29 @@ class MainWindow(QMainWindow):
             self.right_viewer.clear()
             self.center_canvas.clear_selection()
 
-    def execute_task(self, func, *args, success_callback=None, **kwargs):
+    def execute_task(self, func, *args, success_callback=None, with_progress=False, **kwargs):
         self.thread = QThread()
+
+        # If progress is needed, we wrap the function to inject the progress callback
+        # But we can't easily do that here before creating the Worker if func is expecting it
+        # as part of *args or we need to pass it.
+        # Instead, we handle it by passing `progress_callback` to the kwargs if requested.
+
+        if with_progress:
+            # We create a wrapper that will receive the worker instance later? No.
+            # We assume 'func' accepts 'progress_callback' kwarg or we pass a wrapper.
+            # Best approach: pass a lambda that calls func with progress_callback
+            pass
+
         self.worker = Worker(func, *args, **kwargs)
+
+        if with_progress:
+             # We inject the emitter into the kwargs of the worker
+             # But the worker is already initialized with args/kwargs.
+             # We need to rebuild the worker init logic or modify it.
+             # Let's override the kwargs
+             self.worker.kwargs['progress_callback'] = self.worker.progress.emit
+
         self.worker.moveToThread(self.thread)
 
         self.thread.started.connect(self.worker.run)
@@ -305,6 +347,9 @@ class MainWindow(QMainWindow):
 
         self.worker.error.connect(lambda err: QMessageBox.critical(self, "Erro", f"Ocorreu um erro: {err}"))
         self.worker.error.connect(self.hide_loading)
+
+        if with_progress:
+            self.worker.progress.connect(self.loading_dialog.set_progress)
 
         self.thread.start()
 
@@ -379,8 +424,8 @@ class MainWindow(QMainWindow):
         if output_path:
             self.show_loading("Executando OCR...")
 
-            def task():
-                return ocr.make_searchable(self.pdf_manager.filepath, output_path)
+            def task(progress_callback):
+                return ocr.make_searchable(self.pdf_manager.filepath, output_path, progress_callback)
 
             def success(result):
                 success, msg = result
@@ -389,4 +434,4 @@ class MainWindow(QMainWindow):
                 else:
                      QMessageBox.critical(self, "Erro", f"Falha no OCR: {msg}")
 
-            self.execute_task(task, success_callback=success)
+            self.execute_task(task, success_callback=success, with_progress=True)
