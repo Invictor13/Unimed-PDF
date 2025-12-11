@@ -38,6 +38,7 @@ class RightViewer(QWidget):
         # 2. Footer Actions (Rodapé)
         self.footer = QFrame()
         self.footer.setFixedHeight(60)
+        # Garantindo fundo claro e borda visível
         self.footer.setStyleSheet("background-color: #F0F0F0; border-top: 1px solid #CCCCCC;")
         footer_layout = QHBoxLayout(self.footer)
         footer_layout.setContentsMargins(20, 10, 20, 10)
@@ -80,8 +81,21 @@ class RightViewer(QWidget):
         btn.setFixedSize(40, 30)
         btn.setToolTip(tooltip)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        # CORRIGIDO: Cor do texto (ícone) para Verde Unimed
-        btn.setStyleSheet(f"font-size: 16px; padding: 0px; background-color: #E0E0E0; color: {COLOR_PRIMARY}; border: 1px solid #CCCCCC;")
+        # CORRIGIDO: Cor do texto (ícone) para Verde Unimed (#009A3E)
+        # Uso de estilo explícito para garantir contraste contra o fundo cinza
+        btn.setStyleSheet(f"""
+            QPushButton {{
+                font-size: 16px;
+                padding: 0px;
+                background-color: #E0E0E0;
+                color: {COLOR_PRIMARY};
+                border: 1px solid #CCCCCC;
+                border-radius: 4px;
+            }}
+            QPushButton:hover {{
+                background-color: #D0D0D0;
+            }}
+        """)
         btn.clicked.connect(slot)
         return btn
 
