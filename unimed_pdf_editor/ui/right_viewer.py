@@ -58,6 +58,10 @@ class RightViewer(QWidget):
 
         footer_layout.addStretch()
 
+        # Rotation Button
+        self.btn_rotate = self.create_action_button("🔄 Rotacionar", "Rotacionar Página Atual (90°)", lambda: self.action_triggered.emit("rotate_page", None))
+        footer_layout.addWidget(self.btn_rotate)
+
         # Download Button (Individual PDF)
         self.btn_download_pdf = self.create_action_button("⬇️ PDF", "Baixar Página como PDF", lambda: self.action_triggered.emit("download_page", "pdf"))
         footer_layout.addWidget(self.btn_download_pdf)
