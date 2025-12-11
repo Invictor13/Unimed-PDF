@@ -8,10 +8,11 @@ COLOR_TEXT = "#333333"      # Texto escuro para conteúdo
 COLOR_TEXT_LIGHT = "white"  # Texto claro para fundo escuro
 
 # Estilo de Botão (Flat Elegante e Estável)
+# REMOVIDO: transitions, box-shadow, transforms para estabilidade máxima
 BUTTON_STYLE = f"""
     QPushButton {{
         background-color: {COLOR_PRIMARY};
-        color: {COLOR_TEXT_LIGHT};
+        color: white;
         border: none;
         padding: 10px 10px;
         border-radius: 4px;
@@ -19,14 +20,12 @@ BUTTON_STYLE = f"""
         min-height: 30px;
         min-width: 100px;
         font-size: 16px;
-        transition: background-color 0.2s ease;
     }}
     QPushButton:hover {{
         background-color: #007A30;
     }}
     QPushButton:pressed {{
         background-color: #005F25;
-        /* Remover transform/box-shadow */
     }}
     QPushButton#DeleteButton {{
         background-color: {COLOR_ALERT};
@@ -90,7 +89,6 @@ STYLESHEET = f"""
     QLabel#ThumbnailLabel {{
         border: 1px solid #DDDDDD;
         background-color: white;
-        transition: all 0.2s ease;
     }}
 
     QLabel#ThumbnailLabel[selected="true"] {{

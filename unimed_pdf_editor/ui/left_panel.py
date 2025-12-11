@@ -74,7 +74,8 @@ class LeftPanel(QFrame):
 
         self.btn_clear = self.create_button("🧹", "Limpar Sessão", "clear_session")
         # Usando um estilo local para anular o verde do botão principal
-        self.btn_clear.setStyleSheet(BUTTON_STYLE + f"QPushButton {{ background-color: #444444; box-shadow: 0 4px #333333; }} QPushButton:hover {{ background-color: #333333; box-shadow: 0 5px #222222; }}")
+        # REMOVIDO: box-shadow
+        self.btn_clear.setStyleSheet(BUTTON_STYLE + f"QPushButton {{ background-color: #444444; }} QPushButton:hover {{ background-color: #333333; }}")
         layout.addWidget(self.btn_clear)
 
         self.btn_delete = self.create_button("❌", "Excluir Seleção", "delete")
