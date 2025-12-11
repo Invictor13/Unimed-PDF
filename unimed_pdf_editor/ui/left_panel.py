@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QGroupBox, QFileDialog, QFrame, QMessageBox, QInputDialog
 )
 from PyQt6.QtCore import pyqtSignal, Qt
-from .styles import BUTTON_STYLE, COLOR_TEXT_LIGHT
+from .styles import BUTTON_STYLE, COLOR_TEXT_LIGHT, COLOR_PRIMARY, COLOR_ALERT
 
 class LeftPanel(QFrame):
     action_triggered = pyqtSignal(str, object)
@@ -17,8 +17,21 @@ class LeftPanel(QFrame):
         btn = QPushButton(icon)
         btn.setToolTip(tooltip)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        # Força o tamanho e usa o estilo global de cor
-        btn.setStyleSheet("font-size: 20px; font-weight: normal;")
+        # INJEÇÃO DIRETA DE COR PARA GARANTIR CONTRASTE
+        # Anula qualquer sobreposição global que esteja falhando
+        btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLOR_PRIMARY};
+                color: white;
+                font-size: 20px;
+                font-weight: normal;
+                border: none;
+                padding: 10px;
+                border-radius: 4px;
+            }}
+            QPushButton:hover {{ background-color: #007A30; }}
+            QPushButton:pressed {{ background-color: #005F25; }}
+        """)
         btn.clicked.connect(lambda: self.action_triggered.emit(action_name, data))
         return btn
 
@@ -75,13 +88,38 @@ class LeftPanel(QFrame):
         layout.addWidget(self.btn_rotate)
 
         self.btn_clear = self.create_button("🧹", "Limpar Sessão", "clear_session")
-        # Estilo neutro corrigido (Dark Gray)
-        self.btn_clear.setStyleSheet(f"QPushButton {{ background-color: #444444; color: white; }} QPushButton:hover {{ background-color: #333333; }}")
+        # Estilo neutro corrigido (Dark Gray) - Forçando estilo inline completo
+        self.btn_clear.setStyleSheet("""
+            QPushButton {
+                background-color: #444444;
+                color: white;
+                font-size: 20px;
+                font-weight: normal;
+                border: none;
+                padding: 10px;
+                border-radius: 4px;
+            }
+            QPushButton:hover { background-color: #333333; }
+        """)
         layout.addWidget(self.btn_clear)
 
         # Botão de exclusão (Mantido para exclusão em massa/lote)
         self.btn_delete = self.create_button("❌", "Excluir Seleção", "delete")
         self.btn_delete.setObjectName("DeleteButton")
+        # Forçando estilo Vermelho (COLOR_ALERT) inline para garantir prioridade
+        self.btn_delete.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {COLOR_ALERT};
+                color: white;
+                font-size: 20px;
+                font-weight: normal;
+                border: none;
+                padding: 10px;
+                border-radius: 4px;
+            }}
+            QPushButton:hover {{ background-color: #AA0000; }}
+            QPushButton:pressed {{ background-color: #880000; }}
+        """)
         layout.addWidget(self.btn_delete)
 
     # (Mantenha as funções lógicas de manipulação de seleção on_load_clicked, on_range_input_changed, update_selection_input)

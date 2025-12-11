@@ -1,4 +1,3 @@
-
 # Cores Institucionais Unimed
 COLOR_PRIMARY = "#009A3E"   # Verde Unimed
 COLOR_ALERT = "#CC0000"     # Vermelho Excluir
@@ -8,11 +7,10 @@ COLOR_TEXT = "#333333"      # Texto escuro para conteúdo
 COLOR_TEXT_LIGHT = "white"  # Texto claro para fundo escuro
 
 # Estilo de Botão (Flat Elegante e Estável)
-# REMOVIDO: box-shadow, transform, margin complexos.
 BUTTON_STYLE = f"""
     QPushButton {{
         background-color: {COLOR_PRIMARY};
-        color: white; /* GARANTIA DE CONTRASTE */
+        color: white; /* GARANTIA DE CONTRASTE ABSOLUTO */
         border: none;
         padding: 10px 10px;
         border-radius: 4px;
@@ -23,22 +21,27 @@ BUTTON_STYLE = f"""
     }}
     QPushButton:hover {{
         background-color: #007A30;
+        color: white;
     }}
     QPushButton:pressed {{
         background-color: #005F25;
+        color: white;
     }}
     QPushButton#DeleteButton {{
         background-color: {COLOR_ALERT};
+        color: white;
     }}
     QPushButton#DeleteButton:hover {{
         background-color: #AA0000;
+        color: white;
     }}
     QPushButton#DeleteButton:pressed {{
         background-color: #880000;
+        color: white;
     }}
 """
 
-# Estilos Gerais
+# Estilos Gerais (MANTIDOS)
 STYLESHEET = f"""
     QMainWindow {{
         background-color: {COLOR_DARK};
