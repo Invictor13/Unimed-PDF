@@ -73,6 +73,9 @@ class LoadingDialog(QProgressDialog):
 
         self.setValue(current)
 
+    def update_progress(self, current, total):
+        self.set_progress(current, total)
+
 class Worker(QObject):
     # (MANTIDO DO ORIGINAL)
     finished = pyqtSignal(object)
@@ -223,9 +226,9 @@ class MainWindow(QMainWindow):
         elif action == "download_page":
             self.export_single_page(data)
         elif action == "rotate_page":
-            self.rotate_current_viewer_page()
+            self.rotate_single_page_from_viewer()
 
-    def rotate_current_viewer_page(self):
+    def rotate_single_page_from_viewer(self):
         idx = self.right_viewer.current_page_index
         if idx is not None:
              self.show_loading("Rotacionando...")
@@ -349,7 +352,7 @@ class MainWindow(QMainWindow):
         self.worker.error.connect(self.hide_loading)
 
         if with_progress:
-            self.worker.progress.connect(self.loading_dialog.set_progress)
+            self.worker.progress.connect(self.loading_dialog.update_progress)
 
         self.thread.start()
 
