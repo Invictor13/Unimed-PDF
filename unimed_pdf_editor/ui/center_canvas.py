@@ -296,6 +296,16 @@ class CenterCanvas(QWidget):
             }
         """)
 
+    def _clear_layout(self, layout):
+        """Recursively clears a layout."""
+        if layout is not None:
+            while layout.count():
+                item = layout.takeAt(0)
+                if item.widget() is not None:
+                    item.widget().deleteLater()
+                elif item.layout() is not None:
+                    self._clear_layout(item.layout())
+
     def set_view_mode(self, mode):
         if self.view_mode == mode:
             return
@@ -307,8 +317,12 @@ class CenterCanvas(QWidget):
         self.container.mode = mode
 
         # Update layout
-        # Clean current layout
-        QWidget().setLayout(self.container.layout()) # Hack to remove layout
+        # Clean current layout using the helper method to remove items
+        current_layout = self.container.layout()
+        if current_layout is not None:
+             self._clear_layout(current_layout)
+             # Desanexar o layout antigo de forma segura
+             QWidget().setLayout(current_layout)
 
         if mode == 'pages':
             self.grid_layout = QGridLayout(self.container)
