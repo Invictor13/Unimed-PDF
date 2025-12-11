@@ -24,8 +24,9 @@ class RightViewer(QWidget):
         self.scroll_area.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.scroll_area.setStyleSheet("background-color: white; border: none;")
 
-        self.image_label = QLabel()
+        self.image_label = QLabel("Clique em uma página para prévia")
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.image_label.setStyleSheet("font-size: 18px; color: #999999; font-weight: bold;")
         self.scroll_area.setWidget(self.image_label)
 
         main_layout.addWidget(self.scroll_area)
@@ -79,7 +80,8 @@ class RightViewer(QWidget):
         btn.setFixedSize(40, 30)
         btn.setToolTip(tooltip)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setStyleSheet("font-size: 16px; padding: 0px; box-shadow: none; margin: 0px; background-color: #E0E0E0; color: #333333; border: 1px solid #CCCCCC;")
+        # CORRIGIDO: Cor do texto (ícone) para Verde Unimed
+        btn.setStyleSheet(f"font-size: 16px; padding: 0px; box-shadow: none; margin: 0px; background-color: #E0E0E0; color: {COLOR_PRIMARY}; border: 1px solid #CCCCCC;")
         btn.clicked.connect(slot)
         return btn
 
@@ -113,10 +115,14 @@ class RightViewer(QWidget):
             self.footer.show()
         except Exception as e:
             self.image_label.setText(f"Erro ao carregar página: {e}")
+            self.image_label.setStyleSheet("font-size: 14px; color: red;")
             self.footer.hide()
 
     def clear(self):
-        self.image_label.clear()
+        # RE-APLICA MENSAGEM DE EMPTY STATE
+        self.image_label.setText("Clique em uma página para prévia")
+        self.image_label.setStyleSheet("font-size: 18px; color: #999999; font-weight: bold;")
+
         self.lbl_page_info.setText("Nenhuma página selecionada")
         self.current_page_index = None
         self.footer.hide()

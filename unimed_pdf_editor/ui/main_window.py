@@ -148,8 +148,8 @@ class MainWindow(QMainWindow):
 
         self.splitter.setCollapsible(1, True)
 
-        # Balanço 50/50
-        self.splitter.setSizes([600, 600])
+        # Balanço 50/50 (Reforçado para clareza e estabilidade)
+        self.splitter.setSizes([1, 1]) # Força recalculo baseado em stretch
         self.splitter.setStretchFactor(0, 1)
         self.splitter.setStretchFactor(1, 1)
 
