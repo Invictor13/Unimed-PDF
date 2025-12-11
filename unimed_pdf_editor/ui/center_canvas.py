@@ -320,33 +320,10 @@ class CenterCanvas(QWidget):
         # Clean current layout using the helper method
         self._clear_layout(self.container.layout())
 
-        # Note: We don't delete the layout object itself from container directly here easily
-        # without QWidget().setLayout() trick or deleteLater on the layout.
-        # But since we are creating a NEW layout below and assigning it to container,
-        # we need to make sure the old one is properly unset.
-        # Actually, QWidget.setLayout() will reparent the new layout.
-        # To avoid the "QWidget().setLayout()" hack, we can just delete the old layout widget item?
-        # No, the instructions said: "Use _clear_layout instead of the hack".
-        # But _clear_layout just removes items. It doesn't remove the layout from the widget.
-        # If we just do self.container.setLayout(new_layout), Qt might complain if one already exists.
-
-        # Re-reading instruction: "Update set_view_mode to use self._clear_layout(self.container.layout()) instead of the QWidget replacement hack."
-        # If I strictly follow this, I clear the items.
-        # But I still need to switch from QGridLayout to QVBoxLayout.
-        # The provided code creates `self.grid_layout = QGridLayout(self.container)`.
-        # If `self.container` already has a layout, `QGridLayout(self.container)` produces a warning or fails.
-
-        # To strictly follow "remove items correctly", we do _clear_layout.
-        # To replace the layout itself without the hack:
+        # Detach old layout reliably using the QWidget().setLayout() trick
         old_layout = self.container.layout()
         if old_layout:
-             # Reparenting the layout to a temporary widget is effectively the "hack".
-             # Alternatively, `deleteLater` on the layout.
-             old_layout.deleteLater()
-             # We need to process events or ensure it's gone?
-             # Actually, the user instruction "Update set_view_mode to use _clear_layout... instead of QWidget().setLayout()"
-             # implies that the main goal is to clean up items properly.
-             # Let's use deleteLater() on the layout after clearing items.
+             QWidget().setLayout(old_layout)
 
         if mode == 'pages':
             self.grid_layout = QGridLayout(self.container)
