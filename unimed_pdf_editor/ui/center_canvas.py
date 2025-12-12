@@ -1,8 +1,8 @@
 from PyQt6.QtWidgets import (
     QWidget, QScrollArea, QGridLayout, QVBoxLayout, QApplication, QLabel, QHBoxLayout, QFrame, QPushButton
 )
-from PyQt6.QtCore import pyqtSignal, Qt, QMimeData, QPoint, QTimer
-from PyQt6.QtGui import QDrag, QPixmap, QImage
+from PyQt6.QtCore import pyqtSignal, Qt, QMimeData, QPoint, QTimer, QRect
+from PyQt6.QtGui import QDrag, QPixmap, QImage, QPainter, QPen, QBrush, QColor
 from .widgets.thumbnail import Thumbnail
 import os
 
@@ -84,12 +84,56 @@ class ContainerWidget(QWidget):
     page_order_changed = pyqtSignal(int, int)      # For Page View
     doc_order_changed = pyqtSignal(str, int)       # For Doc View: file_id, new_index
     files_dropped = pyqtSignal(list)               # New signal for file drops
+    lasso_started = pyqtSignal()
+    lasso_moved = pyqtSignal(QRect)
+    lasso_ended = pyqtSignal()
 
     def __init__(self, mode='pages', parent=None):
         super().__init__(parent)
         self.mode = mode
         self.thumbnails_ref = [] # Reference to thumbnails list
         self.docs_ref = []       # Reference to doc cards list
+        self.selection_active = False
+        self.start_point = QPoint()
+        self.end_point = QPoint()
+        self.lasso_rect = QRect()
+
+    def mousePressEvent(self, event):
+        if self.mode == 'pages' and event.button() == Qt.MouseButton.LeftButton:
+            self.selection_active = True
+            self.start_point = event.pos()
+            self.end_point = event.pos()
+            self.lasso_rect = QRect()
+            self.update()
+            self.lasso_started.emit()
+        else:
+            super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self.selection_active:
+            self.end_point = event.pos()
+            self.lasso_rect = QRect(self.start_point, self.end_point).normalized()
+            self.update()
+            self.lasso_moved.emit(self.lasso_rect)
+        else:
+            super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self.selection_active:
+            self.selection_active = False
+            self.lasso_rect = QRect()
+            self.update()
+            self.lasso_ended.emit()
+        else:
+            super().mouseReleaseEvent(event)
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self.selection_active and not self.lasso_rect.isNull():
+            painter = QPainter(self)
+            painter.setPen(QPen(QColor(0, 154, 62), 2))
+            painter.setBrush(QBrush(QColor(0, 154, 62, 50)))
+            painter.drawRect(self.lasso_rect)
 
     def set_thumbnails(self, thumbnails):
         self.thumbnails_ref = thumbnails
@@ -277,6 +321,9 @@ class CenterCanvas(QWidget):
         self.container.page_order_changed.connect(self.handle_reorder)
         self.container.doc_order_changed.connect(self.handle_doc_reorder)
         self.container.files_dropped.connect(self.main_window.load_pdf)
+        self.container.lasso_started.connect(self.on_lasso_started)
+        self.container.lasso_moved.connect(self.on_lasso_moved)
+        self.container.lasso_ended.connect(self.on_lasso_ended)
 
         # We switch layouts based on mode
         self.grid_layout = QGridLayout(self.container) # Used for Pages
@@ -515,6 +562,43 @@ class CenterCanvas(QWidget):
     def update_visual_selection(self):
         for thumb in self.thumbnails:
             thumb.set_selected(thumb.index in self.selected_indices)
+
+    def on_lasso_started(self):
+        modifiers = QApplication.keyboardModifiers()
+        if modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier):
+            self.selection_snapshot = self.selected_indices.copy()
+        else:
+            self.selection_snapshot = set()
+            self.selected_indices.clear()
+            self.update_visual_selection()
+
+    def on_lasso_moved(self, rect):
+        self.update_lasso_selection(rect)
+
+    def on_lasso_ended(self):
+        if hasattr(self, 'selection_snapshot'):
+            del self.selection_snapshot
+        self.page_selected.emit(list(self.selected_indices))
+
+    def update_lasso_selection(self, rect):
+        modifiers = QApplication.keyboardModifiers()
+        # Find indices in rect
+        in_rect_indices = set()
+        for thumb in self.thumbnails:
+            if rect.intersects(thumb.geometry()):
+                in_rect_indices.add(thumb.index)
+
+        # Combine with snapshot
+        if modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier):
+            if not hasattr(self, 'selection_snapshot'):
+                self.selection_snapshot = self.selected_indices.copy()
+
+            # Logic: Union (Add to selection)
+            self.selected_indices = self.selection_snapshot | in_rect_indices
+        else:
+            self.selected_indices = in_rect_indices
+
+        self.update_visual_selection()
 
     def get_selected_indices(self):
         return sorted(list(self.selected_indices))
