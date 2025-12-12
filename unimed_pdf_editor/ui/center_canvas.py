@@ -323,8 +323,9 @@ class CenterCanvas(QWidget):
         # 1. Limpa os widgets internos e DESANEXA o layout antigo de forma robusta.
         if old_layout:
              self._clear_layout(old_layout)
-             self.container.setLayout(None) # O comando mágico para o PyQt6!
-             # Layout detached successfully
+             # FIX CIRÚRGICO FINAL: Usar o hack de transferir o layout para um QWidget temporário
+             # para evitar o erro/warning de QWidget::setLayout: Cannot set layout to 0.
+             QWidget().setLayout(old_layout)
 
         # 2. Anexar o NOVO layout.
         if mode == 'pages':
