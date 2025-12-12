@@ -13,6 +13,7 @@ class RightViewer(QWidget):
         self.main_window = main_window
         self.current_page_index = None
         self.zoom_level = 1.0  # Initial zoom level (scale)
+        self.default_scale = 1.0
         self.setObjectName("RightViewer") # Used for white background in styles.py
         self.init_ui()
 
@@ -96,7 +97,7 @@ class RightViewer(QWidget):
 
         # Inicialização do estado
         self.clear()
-        self.update_zoom_label()
+        self.recalculate_zoom()
 
     def create_nav_button(self, icon_text, tooltip, slot):
         btn = QPushButton(icon_text)
@@ -180,22 +181,18 @@ class RightViewer(QWidget):
     def zoom_in(self):
         if self.zoom_level < 5.0:
             self.zoom_level += 0.5
-            self.update_zoom_label()
-            if self.current_page_index is not None:
-                self.load_page(self.current_page_index)
+            self.recalculate_zoom()
 
     def zoom_out(self):
         if self.zoom_level > 0.5:
             self.zoom_level -= 0.5
-            self.update_zoom_label()
-            if self.current_page_index is not None:
-                self.load_page(self.current_page_index)
+            self.recalculate_zoom()
 
-    def update_zoom_label(self):
-        # 2.0 scale is roughly "Standard" but let's map 2.0 to 100% relative to our quality baseline,
-        # or just show raw scale factor?
-        # Usually user expects 100%.
-        # If scale=1.0 is 72 DPI, scale=2.0 is 144 DPI (Retina/High Quality).
-        # Let's say 2.0 is 100% visual quality.
+    def recalculate_zoom(self):
+        # Update label
         percentage = int(self.zoom_level * 100)
         self.lbl_zoom.setText(f"{percentage}%")
+
+        # Reload page if one is selected
+        if self.current_page_index is not None:
+            self.load_page(self.current_page_index)
