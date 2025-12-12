@@ -15,32 +15,42 @@ class PDFManager:
         self.thumbnails = {} # Cache for thumbnails
         self.fitz = fitz # Export fitz module for consumers
 
-    def load_pdf(self, filepath):
-        try:
-            new_doc = fitz.open(filepath)
-            file_name = os.path.basename(filepath)
-            file_id = str(uuid.uuid4())
+    def load_pdf(self, input_data):
+        """
+        Loads one or multiple PDF files.
+        input_data: str (filepath) or list of str (filepaths)
+        """
+        filepaths = input_data if isinstance(input_data, list) else [input_data]
+        total_loaded = 0
 
-            if self.doc is None:
-                self.doc = new_doc
-                self.filepath = filepath
-                current_count = 0
-            else:
-                current_count = len(self.doc)
-                self.doc.insert_pdf(new_doc)
-                # new_doc is merged into self.doc
+        for filepath in filepaths:
+            try:
+                new_doc = fitz.open(filepath)
+                file_name = os.path.basename(filepath)
+                file_id = str(uuid.uuid4())
 
-            new_pages_count = len(new_doc)
+                if self.doc is None:
+                    self.doc = new_doc
+                    self.filepath = filepath
+                    current_count = 0
+                else:
+                    current_count = len(self.doc)
+                    self.doc.insert_pdf(new_doc)
+                    # new_doc is merged into self.doc
 
-            # Add new page indices with file tracking info
-            for i in range(new_pages_count):
-                # The page index in the merged doc is current_count + i
-                self.page_order.append((current_count + i, file_name, file_id))
+                new_pages_count = len(new_doc)
 
-            return len(self.page_order)
-        except Exception as e:
-            print(f"Error loading PDF: {e}")
-            return 0
+                # Add new page indices with file tracking info
+                for i in range(new_pages_count):
+                    # The page index in the merged doc is current_count + i
+                    self.page_order.append((current_count + i, file_name, file_id))
+
+                total_loaded += 1
+
+            except Exception as e:
+                print(f"Error loading PDF {filepath}: {e}")
+
+        return len(self.page_order)
 
     def rotate_page(self, page_index, angle=90):
         if 0 <= page_index < len(self.page_order):
@@ -140,10 +150,53 @@ class PDFManager:
             self.page_order.insert(to_index, item)
 
     def delete_pages(self, indices):
-        sorted_indices = sorted(indices, reverse=True)
-        for idx in sorted_indices:
+        """
+        Deletes pages from the document and page order.
+        Optimized to remove physical pages from self.doc to save memory.
+        """
+        # 1. Collect info about pages to delete (UI Index, Original Doc Index)
+        pages_to_delete = []
+        for idx in indices:
             if 0 <= idx < len(self.page_order):
-                del self.page_order[idx]
+                original_idx = self.page_order[idx][0]
+                pages_to_delete.append((idx, original_idx))
+
+        if not pages_to_delete:
+            return
+
+        # Sort by UI index desc to remove from self.page_order safely
+        pages_to_delete.sort(key=lambda x: x[0], reverse=True)
+
+        # 2. Remove from page_order
+        for idx, _ in pages_to_delete:
+            del self.page_order[idx]
+
+        # 3. Get original indices to delete from physical doc, sort desc
+        # We use a set to avoid duplicates if for some reason multiple UI pages pointed to same doc page (unlikely here but good practice)
+        physical_indices_to_delete = sorted(list(set([p[1] for p in pages_to_delete])), reverse=True)
+
+        # 4. Delete from physical doc and update references
+        # This requires updating both thumbnails keys and page_order references
+        for del_idx in physical_indices_to_delete:
+            self.doc.delete_page(del_idx)
+
+            # Update thumbnails mapping: remove deleted, shift others
+            new_thumbnails = {}
+            for k, v in self.thumbnails.items():
+                if k == del_idx:
+                    continue # Deleted
+                elif k > del_idx:
+                    new_thumbnails[k - 1] = v # Shift down
+                else:
+                    new_thumbnails[k] = v # Keep same
+            self.thumbnails = new_thumbnails
+
+            # Update page_order references
+            # Every page that had an original_index > del_idx must be decremented
+            for i in range(len(self.page_order)):
+                oid, fname, fid = self.page_order[i]
+                if oid > del_idx:
+                    self.page_order[i] = (oid - 1, fname, fid)
 
     def save_pdf(self, output_path):
         output_doc = fitz.open()
@@ -217,6 +270,10 @@ class PDFManager:
                             # Check colorspace, convert to RGB if necessary (e.g. CMYK) to allow JPEG conversion
                             if pix.n - pix.alpha > 3:
                                 pix = fitz.Pixmap(fitz.csRGB, pix)
+
+                            # Remove alpha channel if present (JPEG does not support transparency)
+                            if pix.alpha:
+                                pix = fitz.Pixmap(pix, 0)
 
                             # Target DPI logic: approx 150 DPI
                             # Assuming standard A4 (approx 600x840 points), 150 DPI is approx 1240x1754 pixels

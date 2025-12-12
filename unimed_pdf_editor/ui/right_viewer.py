@@ -12,6 +12,7 @@ class RightViewer(QWidget):
         super().__init__()
         self.main_window = main_window
         self.current_page_index = None
+        self.zoom_level = 2.0  # Initial zoom level (scale)
         self.setObjectName("RightViewer") # Used for white background in styles.py
         self.init_ui()
 
@@ -57,6 +58,20 @@ class RightViewer(QWidget):
         footer_layout.addWidget(btn_prev)
         footer_layout.addWidget(btn_next)
 
+        # Zoom Controls
+        footer_layout.addSpacing(10)
+        btn_zoom_out = self.create_nav_button("-", "Diminuir Zoom", self.zoom_out)
+        btn_zoom_in = self.create_nav_button("+", "Aumentar Zoom", self.zoom_in)
+
+        self.lbl_zoom = QLabel("100%")
+        self.lbl_zoom.setFixedWidth(50)
+        self.lbl_zoom.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_zoom.setStyleSheet("color: #333333; font-weight: bold;")
+
+        footer_layout.addWidget(btn_zoom_out)
+        footer_layout.addWidget(self.lbl_zoom)
+        footer_layout.addWidget(btn_zoom_in)
+
         footer_layout.addStretch()
 
         # Rotation Button (NOVO)
@@ -81,6 +96,7 @@ class RightViewer(QWidget):
 
         # Inicialização do estado
         self.clear()
+        self.update_zoom_label()
 
     def create_nav_button(self, icon_text, tooltip, slot):
         btn = QPushButton(icon_text)
@@ -115,15 +131,18 @@ class RightViewer(QWidget):
     def load_page(self, index):
         self.current_page_index = index
         try:
-            # High res image for viewer (usando a função otimizada)
-            img_data = self.main_window.pdf_manager.get_page_image(index, scale=2.0)
+            # High res image for viewer (usando a função otimizada e zoom dinâmico)
+            img_data = self.main_window.pdf_manager.get_page_image(index, scale=self.zoom_level)
             image = QImage.fromData(img_data)
             pixmap = QPixmap.fromImage(image)
 
             # Escala dinâmica
-            w = self.scroll_area.width() - 40
-            if pixmap.width() > w:
-                pixmap = pixmap.scaledToWidth(w, Qt.TransformationMode.SmoothTransformation)
+            # Se a imagem for maior que a área visível, o QScrollArea cuida do scroll.
+            # Não forçamos mais o scaledToWidth para respeitar o zoom, a menos que seja muito grande inicialmente?
+            # Com zoom manual, o usuário controla o tamanho.
+
+            # No entanto, se o zoom é padrão (2.0), pode ser muito grande.
+            # Vamos respeitar o zoom definido.
 
             self.image_label.setPixmap(pixmap)
             self.image_label.adjustSize()
@@ -155,3 +174,26 @@ class RightViewer(QWidget):
         total = self.main_window.pdf_manager.get_page_count()
         if self.current_page_index is not None and self.current_page_index < total - 1:
             self.load_page(self.current_page_index + 1)
+
+    def zoom_in(self):
+        if self.zoom_level < 5.0:
+            self.zoom_level += 0.5
+            self.update_zoom_label()
+            if self.current_page_index is not None:
+                self.load_page(self.current_page_index)
+
+    def zoom_out(self):
+        if self.zoom_level > 0.5:
+            self.zoom_level -= 0.5
+            self.update_zoom_label()
+            if self.current_page_index is not None:
+                self.load_page(self.current_page_index)
+
+    def update_zoom_label(self):
+        # 2.0 scale is roughly "Standard" but let's map 2.0 to 100% relative to our quality baseline,
+        # or just show raw scale factor?
+        # Usually user expects 100%.
+        # If scale=1.0 is 72 DPI, scale=2.0 is 144 DPI (Retina/High Quality).
+        # Let's say 2.0 is 100% visual quality.
+        percentage = int(self.zoom_level * 50)
+        self.lbl_zoom.setText(f"{percentage}%")
