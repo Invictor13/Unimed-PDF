@@ -1,71 +1,129 @@
-from PyQt6.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QWidget, QApplication
-from PyQt6.QtCore import Qt, pyqtSignal, QMimeData, QPoint
-from PyQt6.QtGui import QPixmap, QImage, QDrag
+from PyQt6.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QWidget, QApplication, QGraphicsDropShadowEffect
+from PyQt6.QtCore import Qt, pyqtSignal, QMimeData, QPoint, QRect, QSize
+from PyQt6.QtGui import QPixmap, QImage, QDrag, QPainter, QColor, QPen, QBrush, QFont, QPainterPath
 
 class Thumbnail(QWidget):
-    clicked = pyqtSignal(int, bool, bool) # index, shift_pressed, ctrl_pressed (ctrl not used but good practice)
+    clicked = pyqtSignal(int, bool, bool) # index, shift_pressed, ctrl_pressed
     double_clicked = pyqtSignal(int)
 
     def __init__(self, index, image_data):
         super().__init__()
         self.index = index
-        self.selected = False
+        self._selected = False
+        self._hovered = False
+        self.image_pixmap = None
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(5, 5, 5, 5)
+        # Fixed logic size for the widget, but painting will handle "Card" feel
+        self.setFixedSize(220, 280)
 
-        self.image_label = QLabel()
-        self.image_label.setObjectName("ThumbnailLabel")
-        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_label.setFixedSize(200, 260) # Fixed thumbnail size
+        # Process Image Data
+        if image_data:
+            if isinstance(image_data, dict) and 'samples' in image_data:
+                image = QImage(
+                    image_data['samples'],
+                    image_data['width'],
+                    image_data['height'],
+                    image_data['stride'],
+                    QImage.Format.Format_RGB888
+                )
+            else:
+                image = QImage.fromData(image_data)
 
-        # Load image
-        if isinstance(image_data, dict) and 'samples' in image_data:
-            # Optimized path: direct load from raw samples
-            # QImage references the data, so it must stay valid until we convert to QPixmap
-            image = QImage(
-                image_data['samples'],
-                image_data['width'],
-                image_data['height'],
-                image_data['stride'],
-                QImage.Format.Format_RGB888
+            # Create a high-quality scaled pixmap for the card
+            # Card image area is approx 200x240
+            self.image_pixmap = QPixmap.fromImage(image).scaled(
+                200, 240,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
             )
-        else:
-            # Legacy/Fallback path
-            image = QImage.fromData(image_data)
 
-        pixmap = QPixmap.fromImage(image)
-        # Scale to fit label
-        pixmap = pixmap.scaled(190, 250, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-        self.image_label.setPixmap(pixmap)
-
-        layout.addWidget(self.image_label)
-
-        # Bottom Layout for Number and Drag Handle
-        bottom_layout = QHBoxLayout()
-        bottom_layout.setContentsMargins(0, 0, 0, 0)
-
-        self.number_label = QLabel(str(index + 1))
-        self.number_label.setStyleSheet("font-weight: bold; font-size: 14px;")
-
-        self.drag_handle = QLabel("⠿")
-        self.drag_handle.setStyleSheet("color: #999999; font-size: 16px; cursor: size_all;")
-        self.drag_handle.setVisible(False) # Show on hover
-
-        bottom_layout.addStretch()
-        bottom_layout.addWidget(self.number_label)
-        bottom_layout.addWidget(self.drag_handle)
-        bottom_layout.addStretch()
-
-        layout.addLayout(bottom_layout)
-
-        self.setProperty("selected", False)
+        self.setMouseTracking(True)
 
     def set_selected(self, selected):
-        self.selected = selected
-        self.image_label.setProperty("selected", "true" if selected else "false")
-        self.image_label.style().unpolish(self.image_label)
-        self.image_label.style().polish(self.image_label)
+        if self._selected != selected:
+            self._selected = selected
+            self.update() # Trigger repaint
+
+    def enterEvent(self, event):
+        self._hovered = True
+        self.update()
+
+    def leaveEvent(self, event):
+        self._hovered = False
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # 1. Background / Shadow Area
+        # If hovered, lift slightly (shift rect up by 2px)
+        offset = -2 if (self._hovered and not self._selected) else 0
+
+        # Main Card Rect
+        rect = self.rect().adjusted(10, 10 + offset, -10, -10 + offset)
+
+        # Draw Shadow
+        shadow_path = QPainterPath()
+        shadow_path.addRoundedRect(rect.adjusted(2, 2, 2, 2), 8, 8)
+        painter.fillPath(shadow_path, QColor(0, 0, 0, 30))
+
+        # Draw Card Background (White)
+        path = QPainterPath()
+        path.addRoundedRect(rect, 8, 8)
+        painter.fillPath(path, Qt.GlobalColor.white)
+
+        # Draw Selection Border (Neon Effect)
+        if self._selected:
+            pen = QPen(QColor("#009A3E"), 3)
+            painter.setPen(pen)
+            painter.drawPath(path)
+
+            # Inner Glow / Dimming logic
+            # Actually, user asked for dimming the IMAGE. We do that below.
+        else:
+            # Subtle border
+            painter.setPen(QPen(QColor("#DDDDDD"), 1))
+            painter.drawPath(path)
+
+        # 2. Draw Image
+        if self.image_pixmap:
+            # Center image in the rect, but shifted up slightly to leave room for page number
+            img_rect = QRect(0, 0, self.image_pixmap.width(), self.image_pixmap.height())
+            img_rect.moveCenter(rect.center())
+            img_rect.moveTop(rect.top() + 10) # Padding top
+
+            painter.drawPixmap(img_rect, self.image_pixmap)
+
+            # Dimming if selected
+            if self._selected:
+                painter.setBrush(QColor(0, 0, 0, 25)) # 10% dimming roughly
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.drawRect(img_rect)
+
+        # 3. Page Number
+        number_rect = QRect(rect.left(), rect.bottom() - 30, rect.width(), 30)
+        painter.setPen(QColor("#333333"))
+        painter.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        painter.drawText(number_rect, Qt.AlignmentFlag.AlignCenter, str(self.index + 1))
+
+        # 4. Checkmark (Google Gallery Style)
+        if self._selected:
+            check_size = 24
+            check_rect = QRect(rect.right() - check_size - 5, rect.top() + 5, check_size, check_size)
+
+            painter.setBrush(QColor("#009A3E"))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawEllipse(check_rect)
+
+            # Draw Check Icon (White)
+            painter.setPen(QPen(Qt.GlobalColor.white, 2))
+            # Simple tick shape
+            p1 = QPoint(check_rect.left() + 6, check_rect.center().y())
+            p2 = QPoint(check_rect.center().x() - 1, check_rect.bottom() - 6)
+            p3 = QPoint(check_rect.right() - 6, check_rect.top() + 7)
+            painter.drawLine(p1, p2)
+            painter.drawLine(p2, p3)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -88,19 +146,15 @@ class Thumbnail(QWidget):
         mime_data.setText(str(self.index))
         drag.setMimeData(mime_data)
 
-        # Snapshot for drag
-        pixmap = self.image_label.pixmap()
-        if pixmap:
-            drag.setPixmap(pixmap.scaled(50, 70, Qt.AspectRatioMode.KeepAspectRatio))
-            drag.setHotSpot(event.pos())
+        # Snapshot for drag (Render the widget)
+        pixmap = QPixmap(self.size())
+        pixmap.fill(Qt.GlobalColor.transparent)
+        self.render(pixmap)
+
+        drag.setPixmap(pixmap.scaled(100, 130, Qt.AspectRatioMode.KeepAspectRatio))
+        drag.setHotSpot(event.pos()) # Center drag? Or keep relative? Relative is fine.
 
         drag.exec(Qt.DropAction.MoveAction)
 
     def mouseDoubleClickEvent(self, event):
         self.double_clicked.emit(self.index)
-
-    def enterEvent(self, event):
-        self.drag_handle.setVisible(True)
-
-    def leaveEvent(self, event):
-        self.drag_handle.setVisible(False)
