@@ -83,6 +83,7 @@ class DocumentCard(QFrame):
 class ContainerWidget(QWidget):
     page_order_changed = pyqtSignal(int, int)      # For Page View
     doc_order_changed = pyqtSignal(str, int)       # For Doc View: file_id, new_index
+    files_dropped = pyqtSignal(list)               # New signal for file drops
 
     def __init__(self, mode='pages', parent=None):
         super().__init__(parent)
@@ -97,6 +98,10 @@ class ContainerWidget(QWidget):
         self.docs_ref = docs
 
     def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.accept()
+            return
+
         if self.mode == 'pages':
             if event.mimeData().hasText() and not event.mimeData().hasFormat("application/x-unimed-doc-index"):
                 event.accept()
@@ -109,10 +114,23 @@ class ContainerWidget(QWidget):
                 event.ignore()
 
     def dropEvent(self, event):
-        if self.mode == 'pages':
+        if event.mimeData().hasUrls():
+            self.handle_file_drop(event)
+        elif self.mode == 'pages':
             self.handle_page_drop(event)
         elif self.mode == 'docs':
             self.handle_doc_drop(event)
+
+    def handle_file_drop(self, event):
+        files = []
+        for url in event.mimeData().urls():
+            if url.isLocalFile():
+                path = url.toLocalFile()
+                if path.lower().endswith('.pdf'):
+                    files.append(path)
+
+        if files:
+            self.files_dropped.emit(files)
 
     def handle_page_drop(self, event):
         try:
@@ -258,6 +276,7 @@ class CenterCanvas(QWidget):
         self.container.setStyleSheet("background-color: #F9F9F9;")
         self.container.page_order_changed.connect(self.handle_reorder)
         self.container.doc_order_changed.connect(self.handle_doc_reorder)
+        self.container.files_dropped.connect(self.main_window.load_pdf)
 
         # We switch layouts based on mode
         self.grid_layout = QGridLayout(self.container) # Used for Pages
