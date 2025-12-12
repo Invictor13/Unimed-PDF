@@ -434,6 +434,7 @@ class MainWindow(QMainWindow):
 
         # Improved OCR progress
         from ..core.ocr_engine import OCREngine
+        import tempfile
         ocr = OCREngine()
 
         output_path, _ = QFileDialog.getSaveFileName(self, "Salvar PDF Pesquisável", "ocr.pdf", "PDF Files (*.pdf)")
@@ -441,12 +442,40 @@ class MainWindow(QMainWindow):
             # Passa a mensagem base. O dialog se encarrega do (0/0)
             self.show_loading("Executando OCR...")
 
+            # Security Fix: Save current state to temp file to ensure OCR processes
+            # the modified document (respecting page deletions/reorders) instead of the original file.
+            fd, temp_path = tempfile.mkstemp(suffix=".pdf")
+            os.close(fd)
+
+            try:
+                # Save current in-memory state to temp file
+                self.pdf_manager.save_pdf(temp_path)
+            except Exception as e:
+                self.hide_loading()
+                QMessageBox.critical(self, "Erro", f"Falha ao preparar arquivo para OCR: {e}")
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                return
+
             def task(progress_callback):
-                return ocr.make_searchable(self.pdf_manager.filepath, output_path, progress_callback)
+                try:
+                    return ocr.make_searchable(temp_path, output_path, progress_callback)
+                finally:
+                    # Cleanup inside the thread/task might be tricky if it crashes,
+                    # but we can try. However, since we created it in the main thread,
+                    # we should probably clean it up in the success callback.
+                    pass
 
             def success(result):
-                success, msg = result
-                if success:
+                # Cleanup temp file
+                if os.path.exists(temp_path):
+                    try:
+                        os.remove(temp_path)
+                    except:
+                        pass
+
+                success_flag, msg = result
+                if success_flag:
                      QMessageBox.information(self, "Sucesso", msg)
                 else:
                      QMessageBox.critical(self, "Erro", f"Falha no OCR: {msg}")
