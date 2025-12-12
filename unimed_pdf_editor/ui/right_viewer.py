@@ -2,7 +2,7 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea, QPushButton, QHBoxLayout, QFrame
 from PyQt6.QtGui import QPixmap, QImage
 from PyQt6.QtCore import Qt, pyqtSignal
-from .styles import COLOR_PRIMARY
+from .styles import COLOR_PRIMARY, COLOR_TEXT
 
 class RightViewer(QWidget):
     action_triggered = pyqtSignal(str, object)
@@ -12,7 +12,8 @@ class RightViewer(QWidget):
         super().__init__()
         self.main_window = main_window
         self.current_page_index = None
-        self.zoom_level = 2.0  # Initial zoom level (scale)
+        self.zoom_level = 1.0  # Initial zoom level (scale)
+        self.default_scale = 1.0
         self.setObjectName("RightViewer") # Used for white background in styles.py
         self.init_ui()
 
@@ -96,7 +97,7 @@ class RightViewer(QWidget):
 
         # Inicialização do estado
         self.clear()
-        self.update_zoom_label()
+        self.recalculate_zoom()
 
     def create_nav_button(self, icon_text, tooltip, slot):
         btn = QPushButton(icon_text)
@@ -126,6 +127,8 @@ class RightViewer(QWidget):
         btn.setToolTip(tooltip)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.clicked.connect(slot)
+        # TASK 1.1: Forçar cor do texto para PRETO para contraste no rodapé cinza.
+        btn.setStyleSheet(f"color: {COLOR_TEXT};")
         return btn
 
     def load_page(self, index):
@@ -178,22 +181,18 @@ class RightViewer(QWidget):
     def zoom_in(self):
         if self.zoom_level < 5.0:
             self.zoom_level += 0.5
-            self.update_zoom_label()
-            if self.current_page_index is not None:
-                self.load_page(self.current_page_index)
+            self.recalculate_zoom()
 
     def zoom_out(self):
         if self.zoom_level > 0.5:
             self.zoom_level -= 0.5
-            self.update_zoom_label()
-            if self.current_page_index is not None:
-                self.load_page(self.current_page_index)
+            self.recalculate_zoom()
 
-    def update_zoom_label(self):
-        # 2.0 scale is roughly "Standard" but let's map 2.0 to 100% relative to our quality baseline,
-        # or just show raw scale factor?
-        # Usually user expects 100%.
-        # If scale=1.0 is 72 DPI, scale=2.0 is 144 DPI (Retina/High Quality).
-        # Let's say 2.0 is 100% visual quality.
-        percentage = int(self.zoom_level * 50)
+    def recalculate_zoom(self):
+        # Update label
+        percentage = int(self.zoom_level * 100)
         self.lbl_zoom.setText(f"{percentage}%")
+
+        # Reload page if one is selected
+        if self.current_page_index is not None:
+            self.load_page(self.current_page_index)
