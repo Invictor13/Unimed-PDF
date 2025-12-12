@@ -30,7 +30,7 @@ class Header(QFrame):
         title.setStyleSheet(f"font-size: 20px; font-weight: bold; color: {COLOR_PRIMARY}; border: none;")
         layout.addWidget(title)
 
-        layout.addStretch()
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
 class LoadingDialog(QProgressDialog):
     # (MANTIDO DO ORIGINAL)
