@@ -5,8 +5,6 @@ from PyQt6.QtGui import QPixmap, QImage, QDrag
 class Thumbnail(QWidget):
     clicked = pyqtSignal(int, bool, bool) # index, shift_pressed, ctrl_pressed (ctrl not used but good practice)
     double_clicked = pyqtSignal(int)
-    hover_entered = pyqtSignal(int, QPoint)
-    hover_left = pyqtSignal(int)
 
     def __init__(self, index, image_data):
         super().__init__()
@@ -103,11 +101,6 @@ class Thumbnail(QWidget):
 
     def enterEvent(self, event):
         self.drag_handle.setVisible(True)
-        # Emit global pos for the tooltip to position itself
-        # We use a slight offset to avoid covering the cursor immediately
-        # Using QPoint(self.width(), 0) places it to the right
-        self.hover_entered.emit(self.index, self.mapToGlobal(QPoint(self.width(), 0)))
 
     def leaveEvent(self, event):
         self.drag_handle.setVisible(False)
-        self.hover_left.emit(self.index)

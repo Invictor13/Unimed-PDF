@@ -6,14 +6,6 @@ from PyQt6.QtGui import QDrag, QPixmap, QImage, QPainter, QPen, QBrush, QColor
 from .widgets.thumbnail import Thumbnail
 import os
 
-class FloatingCard(QLabel):
-    def __init__(self, parent=None):
-        super().__init__(parent, Qt.WindowType.ToolTip)
-        self.setWindowFlags(Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
-        self.setStyleSheet("border: 1px solid #009A3E; background-color: white; padding: 5px;")
-        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.hide()
-
 class DocumentCard(QFrame):
     """
     Widget representing a single document (file) in 'View Documents' mode.
@@ -337,7 +329,6 @@ class CenterCanvas(QWidget):
         self.doc_cards = []  # List of DocumentCard widgets
         self.selected_indices = set()
         self.last_clicked_index = -1
-        self.floating_card = FloatingCard()
 
         self.init_ui()
 
@@ -516,8 +507,6 @@ class CenterCanvas(QWidget):
             thumb = Thumbnail(i, img_data)
             thumb.clicked.connect(self.on_thumbnail_clicked)
             thumb.double_clicked.connect(self.on_thumbnail_double_clicked)
-            thumb.hover_entered.connect(self.on_thumbnail_hover)
-            thumb.hover_left.connect(self.on_thumbnail_leave)
 
             layout.addWidget(thumb, row, col)
             self.thumbnails.append(thumb)
@@ -539,33 +528,6 @@ class CenterCanvas(QWidget):
 
         layout.addStretch() # Push items to top
         self.container.set_docs(self.doc_cards)
-
-    def on_thumbnail_hover(self, index, pos):
-        if self.view_mode != 'pages': return
-
-        img_data = self.main_window.pdf_manager.get_thumbnail(index, scale=0.8)
-
-        if isinstance(img_data, dict) and 'samples' in img_data:
-            image = QImage(
-                img_data['samples'],
-                img_data['width'],
-                img_data['height'],
-                img_data['stride'],
-                QImage.Format.Format_RGB888
-            )
-        else:
-            image = QImage.fromData(img_data)
-
-        pixmap = QPixmap.fromImage(image)
-        if pixmap.height() > 300:
-            pixmap = pixmap.scaledToHeight(300, Qt.TransformationMode.SmoothTransformation)
-
-        self.floating_card.setPixmap(pixmap)
-        self.floating_card.move(pos)
-        self.floating_card.show()
-
-    def on_thumbnail_leave(self, index):
-        self.floating_card.hide()
 
     def on_thumbnail_clicked(self, index, shift_pressed, ctrl_pressed):
         if shift_pressed and self.last_clicked_index != -1:
