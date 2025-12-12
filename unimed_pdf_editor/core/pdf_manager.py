@@ -239,6 +239,7 @@ class PDFManager:
                                 new_pix = fitz.Pixmap(pix) # Copy
 
                             # Convert to JPEG stream with a balanced compression (Quality 50)
+                            # Optimized compression
                             stream = new_pix.tobytes("jpeg", jpg_quality=50) # Alterado de 30 para 50
 
                             # Update the object stream and essential dictionary keys

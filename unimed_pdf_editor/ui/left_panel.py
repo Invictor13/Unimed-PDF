@@ -13,18 +13,19 @@ class LeftPanel(QFrame):
         self.init_ui()
 
     def create_button(self, text, tooltip, action_name, data=None, connect_default=True):
+        # Uses text only, no icons
         btn = QPushButton(text)
         btn.setToolTip(tooltip)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
         # Removed specific font-size to inherit from global style
-        # btn.setStyleSheet("font-size: 20px;")
 
         if connect_default:
             btn.clicked.connect(lambda: self.action_triggered.emit(action_name, data))
         return btn
 
     def init_ui(self):
+        # Finalized design
         layout = QVBoxLayout(self)
         layout.setSpacing(15)
         layout.setContentsMargins(15, 10, 15, 10)
