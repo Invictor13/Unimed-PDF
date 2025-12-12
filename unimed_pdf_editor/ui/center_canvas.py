@@ -139,10 +139,6 @@ class ContainerWidget(QWidget):
             painter.setBrush(QBrush(QColor(0, 154, 62, 30)))
             painter.drawRoundedRect(self.drop_indicator_rect, 8, 8)
 
-            # Draw text?
-            # painter.setPen(QColor(0, 154, 62))
-            # painter.drawText(self.drop_indicator_rect, Qt.AlignmentFlag.AlignCenter, "+")
-
     def set_thumbnails(self, thumbnails):
         self.thumbnails_ref = thumbnails
 
@@ -184,7 +180,7 @@ class ContainerWidget(QWidget):
                 event.ignore()
         elif self.mode == 'docs':
              if event.mimeData().hasFormat("application/x-unimed-doc-index"):
-                self.drop_indicator_rect = QRect() # Not implementing ghost for docs yet, standard list behavior
+                self.drop_indicator_rect = QRect() # Not implementing ghost for docs yet
                 self.update()
                 event.accept()
              else:
@@ -231,33 +227,17 @@ class ContainerWidget(QWidget):
             # Determine insertion point (before or after)
             insert_after = pos.x() > geo.center().x()
 
-            # Ghost Logic: We want to show WHERE the item will exist.
-            # In a grid, this is tricky because everything shifts.
-            # Simplification: Draw the ghost box OVER the target position.
-
             if insert_after:
                 target_index = closest_thumb.index + 1
-                # Logic to find where "Next" is visually is complex in Grid.
-                # Simplified: Draw a box to the right, or if end of row, start of next row.
-                # For now, let's just draw the "Insert Bar" transformed into a "Ghost Box"
-                # Actually, let's just highlight the GAP.
-
-                # Ghost Box: Same size as thumbnail, positioned slightly offset?
-                # No, user wants "Visual space... or ghost indicator".
-
-                # Let's draw a Box BETWEEN items.
                 ghost_width = 20
                 ghost_height = geo.height()
-
-                if insert_after:
-                     ghost_rect = QRect(geo.right(), geo.top(), ghost_width, ghost_height)
-                else:
-                     ghost_rect = QRect(geo.left() - ghost_width, geo.top(), ghost_width, ghost_height)
-
+                ghost_rect = QRect(geo.right(), geo.top(), ghost_width, ghost_height)
                 return target_index, ghost_rect
             else:
                 target_index = closest_thumb.index
-                ghost_rect = QRect(geo.left() - 20, geo.top(), 20, geo.height())
+                ghost_width = 20
+                ghost_height = geo.height()
+                ghost_rect = QRect(geo.left() - ghost_width, geo.top(), ghost_width, ghost_height)
                 return target_index, ghost_rect
 
         return -1, QRect()
@@ -282,19 +262,6 @@ class ContainerWidget(QWidget):
 
         # Use the calculated target from dragMove
         if self.drop_target_index != -1 and self.drop_target_index != source_index:
-            # Adjust index if moving forward/backward logic (managed by manager usually)
-            # If moving to X, and X > Source, the real index shifts.
-            # Manager logic: pop source, insert at target.
-
-            # Correction: if target > source, we must decrement target by 1 because source is removed first?
-            # Python list.insert inserts *before* the index.
-            # If I drop *after* index 5 (so target is 6), and I move index 2.
-            # Pop 2. List shrinks. Index 6 becomes 5. Insert at 5. Correct.
-
-            # However, if I move 5 to *before* 2 (target 2).
-            # Pop 5. List shrinks. Insert at 2. Correct.
-
-            # Just emit exactly what was calculated.
             self.page_order_changed.emit(source_index, self.drop_target_index)
 
     def handle_doc_drop(self, event):
@@ -408,8 +375,7 @@ class CenterCanvas(QWidget):
 
         toolbar_layout.addStretch()
 
-        # Zoom Slider in Toolbar (User requested footer OR toolbar)
-        # Putting in toolbar for immediate access
+        # Zoom Slider in Toolbar
         lbl_zoom = QLabel("Zoom:")
         lbl_zoom.setStyleSheet("color: #333333; font-weight: bold;")
         toolbar_layout.addWidget(lbl_zoom)
@@ -417,7 +383,8 @@ class CenterCanvas(QWidget):
         self.zoom_slider = QSlider(Qt.Orientation.Horizontal)
         self.zoom_slider.setRange(10, 100)
         self.zoom_slider.setValue(50)
-        self.zoom_slider.setWidth(150)
+        # CORREÇÃO AQUI: setFixedwidth em vez de setWidth
+        self.zoom_slider.setFixedWidth(150)
         self.zoom_slider.valueChanged.connect(self.set_zoom)
         toolbar_layout.addWidget(self.zoom_slider)
 
@@ -453,11 +420,6 @@ class CenterCanvas(QWidget):
     def set_zoom(self, value):
         self.zoom_level = value
         # Map 10-100 to Columns (approx 6 to 2)
-        # 10 -> 6 cols
-        # 100 -> 2 cols
-        # Linear map?
-        # new_cols = 6 - (value - 10) / (90/4) approx
-
         new_cols = int(6 - (value - 10) * (4 / 90))
         new_cols = max(1, min(6, new_cols))
 
@@ -560,20 +522,7 @@ class CenterCanvas(QWidget):
 
     def _setup_pages_grid(self, count, layout):
         # Scale thumbnails based on columns
-        # Screen Width?
-        # Fixed logic for now: Columns determines placement.
-        # Thumbnail widget handles its own internal scaling (Card Size)
-        # But we should probably scale the widget size if zoom is huge.
-        # For now, keeping widget size fixed (220x280) but changing grid density.
-
-        # User requirement: "Change thumbnail size in real time".
-        # Currently Thumbnail is FixedSize 220x280.
-        # We need to make Thumbnail scalable.
-
-        # Update: In `Thumbnail` I set fixed size. I should probably remove fixed size there
-        # or update it here.
-
-        # Let's adjust scale factor.
+        # Calculate scale factor from zoom (10-100) where 50 is default
         scale_factor = (self.zoom_level / 50.0) # 0.2 to 2.0
         base_w, base_h = 220, 280
         scaled_w = int(base_w * scale_factor)
@@ -584,8 +533,6 @@ class CenterCanvas(QWidget):
         columns = self.current_columns
 
         for i in range(count):
-            # Create Thumbnail with None data (Placeholder)
-            # Pass size hint?
             thumb = Thumbnail(i, None)
             thumb.setFixedSize(scaled_w, scaled_h)
 
@@ -595,7 +542,6 @@ class CenterCanvas(QWidget):
             layout.addWidget(thumb, row, col)
             self.thumbnails.append(thumb)
 
-            # Add to lazy load queue
             self.loading_queue.append(thumb)
 
             col += 1
@@ -604,8 +550,6 @@ class CenterCanvas(QWidget):
                 row += 1
 
         self.container.set_thumbnails(self.thumbnails)
-
-        # Start Lazy Loading
         self.loading_timer.start()
 
     def _process_loading_queue(self):
@@ -613,28 +557,15 @@ class CenterCanvas(QWidget):
             self.loading_timer.stop()
             return
 
-        # Load batch of 5
         for _ in range(5):
             if not self.loading_queue:
                 break
 
             thumb = self.loading_queue.pop(0)
-
-            # Fetch data
-            # Calculate quality scale based on zoom?
-            # Default 0.3 is good for thumbnails.
             img_data = self.main_window.pdf_manager.get_thumbnail(thumb.index, scale=0.3)
-
-            # Manually inject data into Thumbnail (Need to add a method to Thumbnail or recreate)
-            # Recreating is bad because it's already in layout.
-            # I will modify Thumbnail to allow setting data later.
-            # For now, I'll access internal property or re-init logic.
-
-            # Refactor Thumbnail to have set_data
             self._update_thumbnail_data(thumb, img_data)
 
     def _update_thumbnail_data(self, thumb, image_data):
-        # Helper to update thumbnail content dynamically
         if image_data:
             if isinstance(image_data, dict) and 'samples' in image_data:
                 image = QImage(
@@ -647,9 +578,9 @@ class CenterCanvas(QWidget):
             else:
                 image = QImage.fromData(image_data)
 
-            # Scale based on widget size
-            w = thumb.width() - 20 # Padding
-            h = thumb.height() - 40 # Padding + Text
+            # Scale based on widget size minus padding
+            w = thumb.width() - 20
+            h = thumb.height() - 40
 
             thumb.image_pixmap = QPixmap.fromImage(image).scaled(
                 w, h,
