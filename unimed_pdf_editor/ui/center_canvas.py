@@ -1,10 +1,11 @@
 from PyQt6.QtWidgets import (
-    QWidget, QScrollArea, QGridLayout, QVBoxLayout, QApplication, QLabel, QHBoxLayout, QFrame, QPushButton
+    QWidget, QScrollArea, QGridLayout, QVBoxLayout, QApplication, QLabel, QHBoxLayout, QFrame, QPushButton, QSlider
 )
 from PyQt6.QtCore import pyqtSignal, Qt, QMimeData, QPoint, QTimer, QRect
 from PyQt6.QtGui import QDrag, QPixmap, QImage, QPainter, QPen, QBrush, QColor
 from .widgets.thumbnail import Thumbnail
 import os
+import math
 
 class DocumentCard(QFrame):
     """
@@ -34,7 +35,7 @@ class DocumentCard(QFrame):
         layout.setContentsMargins(15, 10, 15, 10)
 
         # Icon
-        icon_label = QLabel("📄") # Or use a proper icon
+        icon_label = QLabel("📄")
         icon_label.setStyleSheet("font-size: 24px; border: none; background: transparent;")
         layout.addWidget(icon_label)
 
@@ -64,7 +65,6 @@ class DocumentCard(QFrame):
             mime.setData("application/x-unimed-doc-index", str(self.index).encode())
             drag.setMimeData(mime)
 
-            # Create visual representation for drag
             pixmap = QPixmap(self.size())
             self.render(pixmap)
             drag.setPixmap(pixmap)
@@ -73,9 +73,9 @@ class DocumentCard(QFrame):
             drag.exec(Qt.DropAction.MoveAction)
 
 class ContainerWidget(QWidget):
-    page_order_changed = pyqtSignal(int, int)      # For Page View
-    doc_order_changed = pyqtSignal(str, int)       # For Doc View: file_id, new_index
-    files_dropped = pyqtSignal(list)               # New signal for file drops
+    page_order_changed = pyqtSignal(int, int)
+    doc_order_changed = pyqtSignal(str, int)
+    files_dropped = pyqtSignal(list)
     lasso_started = pyqtSignal()
     lasso_moved = pyqtSignal(QRect)
     lasso_ended = pyqtSignal()
@@ -83,13 +83,15 @@ class ContainerWidget(QWidget):
     def __init__(self, mode='pages', parent=None):
         super().__init__(parent)
         self.mode = mode
-        self.thumbnails_ref = [] # Reference to thumbnails list
-        self.docs_ref = []       # Reference to doc cards list
+        self.thumbnails_ref = []
+        self.docs_ref = []
         self.selection_active = False
         self.start_point = QPoint()
         self.end_point = QPoint()
         self.lasso_rect = QRect()
         self.drop_indicator_rect = QRect()
+        self.drop_indicator_type = 'line' # 'line' or 'box'
+        self.drop_target_index = -1
 
     def mousePressEvent(self, event):
         if self.mode == 'pages' and event.button() == Qt.MouseButton.LeftButton:
@@ -124,15 +126,22 @@ class ContainerWidget(QWidget):
         super().paintEvent(event)
         painter = QPainter(self)
 
+        # Draw Lasso
         if self.selection_active and not self.lasso_rect.isNull():
             painter.setPen(QPen(QColor(0, 154, 62), 2))
             painter.setBrush(QBrush(QColor(0, 154, 62, 50)))
             painter.drawRect(self.lasso_rect)
 
+        # Draw Drop Indicator (Ghost Drop)
         if not self.drop_indicator_rect.isNull():
-            painter.setPen(QPen(QColor(0, 154, 62), 3))
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawLine(self.drop_indicator_rect.topLeft(), self.drop_indicator_rect.bottomLeft())
+            painter.setPen(QPen(QColor(0, 154, 62), 3, Qt.PenStyle.DashLine))
+            # Ghost Box Style
+            painter.setBrush(QBrush(QColor(0, 154, 62, 30)))
+            painter.drawRoundedRect(self.drop_indicator_rect, 8, 8)
+
+            # Draw text?
+            # painter.setPen(QColor(0, 154, 62))
+            # painter.drawText(self.drop_indicator_rect, Qt.AlignmentFlag.AlignCenter, "+")
 
     def set_thumbnails(self, thumbnails):
         self.thumbnails_ref = thumbnails
@@ -168,14 +177,14 @@ class ContainerWidget(QWidget):
                 except ValueError:
                     source_index = -1
 
-                _, self.drop_indicator_rect = self._calculate_drop_target(event.position().toPoint(), source_index)
+                self.drop_target_index, self.drop_indicator_rect = self._calculate_drop_ghost(event.position().toPoint(), source_index)
                 self.update()
                 event.accept()
             else:
                 event.ignore()
         elif self.mode == 'docs':
              if event.mimeData().hasFormat("application/x-unimed-doc-index"):
-                self.drop_indicator_rect = QRect() # Clear for docs for now
+                self.drop_indicator_rect = QRect() # Not implementing ghost for docs yet, standard list behavior
                 self.update()
                 event.accept()
              else:
@@ -197,10 +206,11 @@ class ContainerWidget(QWidget):
         elif self.mode == 'docs':
             self.handle_doc_drop(event)
 
-    def _calculate_drop_target(self, pos, source_index=-1):
+    def _calculate_drop_ghost(self, pos, source_index=-1):
         if not self.thumbnails_ref:
             return -1, QRect()
 
+        # Find closest thumbnail
         closest_thumb = None
         min_dist = float('inf')
 
@@ -213,19 +223,42 @@ class ContainerWidget(QWidget):
 
         if closest_thumb:
             if closest_thumb.index == source_index:
-                 return source_index, QRect() # No visual feedback if over self
+                 # Dropping on self
+                 return source_index, QRect()
 
             geo = closest_thumb.geometry()
+
+            # Determine insertion point (before or after)
             insert_after = pos.x() > geo.center().x()
+
+            # Ghost Logic: We want to show WHERE the item will exist.
+            # In a grid, this is tricky because everything shifts.
+            # Simplification: Draw the ghost box OVER the target position.
 
             if insert_after:
                 target_index = closest_thumb.index + 1
-                indicator_rect = QRect(geo.right(), geo.top(), 2, geo.height())
+                # Logic to find where "Next" is visually is complex in Grid.
+                # Simplified: Draw a box to the right, or if end of row, start of next row.
+                # For now, let's just draw the "Insert Bar" transformed into a "Ghost Box"
+                # Actually, let's just highlight the GAP.
+
+                # Ghost Box: Same size as thumbnail, positioned slightly offset?
+                # No, user wants "Visual space... or ghost indicator".
+
+                # Let's draw a Box BETWEEN items.
+                ghost_width = 20
+                ghost_height = geo.height()
+
+                if insert_after:
+                     ghost_rect = QRect(geo.right(), geo.top(), ghost_width, ghost_height)
+                else:
+                     ghost_rect = QRect(geo.left() - ghost_width, geo.top(), ghost_width, ghost_height)
+
+                return target_index, ghost_rect
             else:
                 target_index = closest_thumb.index
-                indicator_rect = QRect(geo.left() - 2, geo.top(), 2, geo.height())
-
-            return target_index, indicator_rect
+                ghost_rect = QRect(geo.left() - 20, geo.top(), 20, geo.height())
+                return target_index, ghost_rect
 
         return -1, QRect()
 
@@ -247,11 +280,22 @@ class ContainerWidget(QWidget):
             event.ignore()
             return
 
-        drop_pos = event.position().toPoint()
-        target_index, _ = self._calculate_drop_target(drop_pos, source_index)
+        # Use the calculated target from dragMove
+        if self.drop_target_index != -1 and self.drop_target_index != source_index:
+            # Adjust index if moving forward/backward logic (managed by manager usually)
+            # If moving to X, and X > Source, the real index shifts.
+            # Manager logic: pop source, insert at target.
 
-        if target_index != -1 and target_index != source_index:
-            self.page_order_changed.emit(source_index, target_index)
+            # Correction: if target > source, we must decrement target by 1 because source is removed first?
+            # Python list.insert inserts *before* the index.
+            # If I drop *after* index 5 (so target is 6), and I move index 2.
+            # Pop 2. List shrinks. Index 6 becomes 5. Insert at 5. Correct.
+
+            # However, if I move 5 to *before* 2 (target 2).
+            # Pop 5. List shrinks. Insert at 2. Correct.
+
+            # Just emit exactly what was calculated.
+            self.page_order_changed.emit(source_index, self.drop_target_index)
 
     def handle_doc_drop(self, event):
         try:
@@ -262,23 +306,18 @@ class ContainerWidget(QWidget):
             return
 
         drop_pos = event.position().toPoint()
-
         target_index = -1
 
-        # Simple vertical list hit testing
-        # We check which card we are over
         for i, doc_card in enumerate(self.docs_ref):
             geo = doc_card.geometry()
             if geo.contains(drop_pos):
                 target_index = i
                 break
 
-        # If dropped below all, assume last
         if target_index == -1:
             if drop_pos.y() > self.docs_ref[-1].geometry().bottom():
                 target_index = len(self.docs_ref) - 1
             else:
-                 # Check if above first
                  if drop_pos.y() < self.docs_ref[0].geometry().top():
                      target_index = 0
 
@@ -286,7 +325,6 @@ class ContainerWidget(QWidget):
             file_id = self.docs_ref[source_index].file_info['file_id']
             self.doc_order_changed.emit(file_id, target_index)
 
-# CLASSE DE ESTADO VAZIO SIMPLIFICADA (ESTÁVEL)
 class EmptyState(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -295,7 +333,6 @@ class EmptyState(QFrame):
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setSpacing(20)
 
-        # Logo
         logo_label = QLabel()
         logo_path = os.path.join("assets", "logo.png")
         if os.path.exists(logo_path):
@@ -315,20 +352,31 @@ class EmptyState(QFrame):
         layout.addWidget(sub_label)
 
 class CenterCanvas(QWidget):
-    page_selected = pyqtSignal(list) # list of selected indices
-    page_order_changed = pyqtSignal(int, int) # from_index, to_index
+    page_selected = pyqtSignal(list)
+    page_order_changed = pyqtSignal(int, int)
     request_viewer = pyqtSignal(int)
+    zoom_changed = pyqtSignal(int)
 
     def __init__(self, main_window):
         super().__init__()
         self.setObjectName("CanvasWidget")
         self.main_window = main_window
-        self.view_mode = 'pages' # 'pages' or 'docs'
+        self.view_mode = 'pages'
 
-        self.thumbnails = [] # List of Thumbnail widgets
-        self.doc_cards = []  # List of DocumentCard widgets
+        self.thumbnails = []
+        self.doc_cards = []
         self.selected_indices = set()
         self.last_clicked_index = -1
+
+        # Grid Dynamic State
+        self.zoom_level = 50 # 0 to 100
+        self.current_columns = 4
+
+        # Lazy Loading State
+        self.loading_queue = []
+        self.loading_timer = QTimer()
+        self.loading_timer.timeout.connect(self._process_loading_queue)
+        self.loading_timer.setInterval(10) # 10ms for responsiveness
 
         self.init_ui()
 
@@ -344,7 +392,6 @@ class CenterCanvas(QWidget):
         toolbar_layout = QHBoxLayout(toolbar)
         toolbar_layout.setContentsMargins(10, 5, 10, 5)
 
-        # View Toggles
         self.btn_view_pages = QPushButton("Ver Páginas")
         self.btn_view_pages.setCheckable(True)
         self.btn_view_pages.setChecked(True)
@@ -358,7 +405,21 @@ class CenterCanvas(QWidget):
 
         toolbar_layout.addWidget(self.btn_view_pages)
         toolbar_layout.addWidget(self.btn_view_docs)
+
         toolbar_layout.addStretch()
+
+        # Zoom Slider in Toolbar (User requested footer OR toolbar)
+        # Putting in toolbar for immediate access
+        lbl_zoom = QLabel("Zoom:")
+        lbl_zoom.setStyleSheet("color: #333333; font-weight: bold;")
+        toolbar_layout.addWidget(lbl_zoom)
+
+        self.zoom_slider = QSlider(Qt.Orientation.Horizontal)
+        self.zoom_slider.setRange(10, 100)
+        self.zoom_slider.setValue(50)
+        self.zoom_slider.setWidth(150)
+        self.zoom_slider.valueChanged.connect(self.set_zoom)
+        toolbar_layout.addWidget(self.zoom_slider)
 
         main_layout.addWidget(toolbar)
 
@@ -378,20 +439,32 @@ class CenterCanvas(QWidget):
         self.container.lasso_moved.connect(self.on_lasso_moved)
         self.container.lasso_ended.connect(self.on_lasso_ended)
 
-        # We switch layouts based on mode
-        self.grid_layout = QGridLayout(self.container) # Used for Pages
-        self.v_layout = QVBoxLayout() # Used for Docs (we will set it to container when mode changes)
+        self.grid_layout = QGridLayout(self.container)
+        self.v_layout = QVBoxLayout()
 
-        # Default layout
         self.container.setLayout(self.grid_layout)
 
         self.scroll_area.setWidget(self.container)
         main_layout.addWidget(self.scroll_area)
-
-        # Enable drag and drop on the container
         self.container.setAcceptDrops(True)
 
         self.refresh_thumbnails()
+
+    def set_zoom(self, value):
+        self.zoom_level = value
+        # Map 10-100 to Columns (approx 6 to 2)
+        # 10 -> 6 cols
+        # 100 -> 2 cols
+        # Linear map?
+        # new_cols = 6 - (value - 10) / (90/4) approx
+
+        new_cols = int(6 - (value - 10) * (4 / 90))
+        new_cols = max(1, min(6, new_cols))
+
+        if new_cols != self.current_columns:
+            self.current_columns = new_cols
+            if self.view_mode == 'pages':
+                self.refresh_thumbnails()
 
     def style_toggle_button(self, btn):
         btn.setStyleSheet("""
@@ -416,7 +489,6 @@ class CenterCanvas(QWidget):
         """)
 
     def _clear_layout(self, layout):
-        """Recursively clears a layout."""
         if layout is not None:
             while layout.count():
                 item = layout.takeAt(0)
@@ -432,21 +504,13 @@ class CenterCanvas(QWidget):
         self.view_mode = mode
         self.btn_view_pages.setChecked(mode == 'pages')
         self.btn_view_docs.setChecked(mode == 'docs')
-
         self.container.mode = mode
 
-        # --- CORREÇÃO CRÍTICA DE LAYOUT ---
-        # Fixed layout bug: Ensure old layout is cleared and detached.
         old_layout = self.container.layout()
-
-        # 1. Limpa os widgets internos e DESANEXA o layout antigo de forma robusta.
         if old_layout:
              self._clear_layout(old_layout)
-             # FIX CIRÚRGICO FINAL: Usar o hack de transferir o layout para um QWidget temporário
-             # para evitar o erro/warning de QWidget::setLayout: Cannot set layout to 0.
              QWidget().setLayout(old_layout)
 
-        # 2. Anexar o NOVO layout.
         if mode == 'pages':
             self.grid_layout = QGridLayout(self.container)
             self.grid_layout.setSpacing(20)
@@ -465,12 +529,13 @@ class CenterCanvas(QWidget):
         self.refresh_thumbnails()
 
     def handle_doc_reorder(self, file_id, new_index):
-        # Call PDF Manager to reorder
         self.main_window.pdf_manager.reorder_file(file_id, new_index)
         self.refresh_thumbnails()
 
     def refresh_thumbnails(self):
-        # Clear existing items
+        self.loading_timer.stop()
+        self.loading_queue = []
+
         layout = self.container.layout()
         if layout:
             self._clear_layout(layout)
@@ -482,34 +547,56 @@ class CenterCanvas(QWidget):
         count = self.main_window.pdf_manager.get_page_count()
 
         if count == 0:
-            # Show Empty State
             empty_state = EmptyState()
             layout.addWidget(empty_state)
-            if self.view_mode == 'pages':
-                # Center in grid
-                pass
             self.container.set_thumbnails([])
             self.container.set_docs([])
             return
 
         if self.view_mode == 'pages':
-            self._render_pages_view(count, layout)
+            self._setup_pages_grid(count, layout)
         else:
             self._render_docs_view(layout)
 
-    def _render_pages_view(self, count, layout):
-        columns = 4
+    def _setup_pages_grid(self, count, layout):
+        # Scale thumbnails based on columns
+        # Screen Width?
+        # Fixed logic for now: Columns determines placement.
+        # Thumbnail widget handles its own internal scaling (Card Size)
+        # But we should probably scale the widget size if zoom is huge.
+        # For now, keeping widget size fixed (220x280) but changing grid density.
+
+        # User requirement: "Change thumbnail size in real time".
+        # Currently Thumbnail is FixedSize 220x280.
+        # We need to make Thumbnail scalable.
+
+        # Update: In `Thumbnail` I set fixed size. I should probably remove fixed size there
+        # or update it here.
+
+        # Let's adjust scale factor.
+        scale_factor = (self.zoom_level / 50.0) # 0.2 to 2.0
+        base_w, base_h = 220, 280
+        scaled_w = int(base_w * scale_factor)
+        scaled_h = int(base_h * scale_factor)
+
         row = 0
         col = 0
+        columns = self.current_columns
 
         for i in range(count):
-            img_data = self.main_window.pdf_manager.get_thumbnail(i)
-            thumb = Thumbnail(i, img_data)
+            # Create Thumbnail with None data (Placeholder)
+            # Pass size hint?
+            thumb = Thumbnail(i, None)
+            thumb.setFixedSize(scaled_w, scaled_h)
+
             thumb.clicked.connect(self.on_thumbnail_clicked)
             thumb.double_clicked.connect(self.on_thumbnail_double_clicked)
 
             layout.addWidget(thumb, row, col)
             self.thumbnails.append(thumb)
+
+            # Add to lazy load queue
+            self.loading_queue.append(thumb)
 
             col += 1
             if col >= columns:
@@ -517,6 +604,59 @@ class CenterCanvas(QWidget):
                 row += 1
 
         self.container.set_thumbnails(self.thumbnails)
+
+        # Start Lazy Loading
+        self.loading_timer.start()
+
+    def _process_loading_queue(self):
+        if not self.loading_queue:
+            self.loading_timer.stop()
+            return
+
+        # Load batch of 5
+        for _ in range(5):
+            if not self.loading_queue:
+                break
+
+            thumb = self.loading_queue.pop(0)
+
+            # Fetch data
+            # Calculate quality scale based on zoom?
+            # Default 0.3 is good for thumbnails.
+            img_data = self.main_window.pdf_manager.get_thumbnail(thumb.index, scale=0.3)
+
+            # Manually inject data into Thumbnail (Need to add a method to Thumbnail or recreate)
+            # Recreating is bad because it's already in layout.
+            # I will modify Thumbnail to allow setting data later.
+            # For now, I'll access internal property or re-init logic.
+
+            # Refactor Thumbnail to have set_data
+            self._update_thumbnail_data(thumb, img_data)
+
+    def _update_thumbnail_data(self, thumb, image_data):
+        # Helper to update thumbnail content dynamically
+        if image_data:
+            if isinstance(image_data, dict) and 'samples' in image_data:
+                image = QImage(
+                    image_data['samples'],
+                    image_data['width'],
+                    image_data['height'],
+                    image_data['stride'],
+                    QImage.Format.Format_RGB888
+                )
+            else:
+                image = QImage.fromData(image_data)
+
+            # Scale based on widget size
+            w = thumb.width() - 20 # Padding
+            h = thumb.height() - 40 # Padding + Text
+
+            thumb.image_pixmap = QPixmap.fromImage(image).scaled(
+                w, h,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            thumb.update()
 
     def _render_docs_view(self, layout):
         files = self.main_window.pdf_manager.get_files_in_order()
@@ -526,7 +666,7 @@ class CenterCanvas(QWidget):
             layout.addWidget(card)
             self.doc_cards.append(card)
 
-        layout.addStretch() # Push items to top
+        layout.addStretch()
         self.container.set_docs(self.doc_cards)
 
     def on_thumbnail_clicked(self, index, shift_pressed, ctrl_pressed):
@@ -573,22 +713,16 @@ class CenterCanvas(QWidget):
 
     def update_lasso_selection(self, rect):
         modifiers = QApplication.keyboardModifiers()
-        # Find indices in rect
         in_rect_indices = set()
 
-        # Refined Lasso Selection Logic: Check intersection with thumbnail geometry
         for thumb in self.thumbnails:
-            # Ensure we are checking against the correct coordinate system (ContainerWidget)
             thumb_rect = thumb.geometry()
             if rect.intersects(thumb_rect):
                 in_rect_indices.add(thumb.index)
 
-        # Combine with snapshot
         if modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier):
             if not hasattr(self, 'selection_snapshot'):
                 self.selection_snapshot = self.selected_indices.copy()
-
-            # Logic: Union (Add to selection)
             self.selected_indices = self.selection_snapshot | in_rect_indices
         else:
             self.selected_indices = in_rect_indices
