@@ -2,7 +2,7 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea, QPushButton, QHBoxLayout, QFrame
 from PyQt6.QtGui import QPixmap, QImage
 from PyQt6.QtCore import Qt, pyqtSignal
-from .styles import COLOR_PRIMARY
+from .styles import COLOR_PRIMARY, COLOR_TEXT
 
 class RightViewer(QWidget):
     action_triggered = pyqtSignal(str, object)
@@ -12,7 +12,7 @@ class RightViewer(QWidget):
         super().__init__()
         self.main_window = main_window
         self.current_page_index = None
-        self.zoom_level = 2.0  # Initial zoom level (scale)
+        self.zoom_level = 1.0  # Initial zoom level (scale)
         self.setObjectName("RightViewer") # Used for white background in styles.py
         self.init_ui()
 
@@ -126,6 +126,8 @@ class RightViewer(QWidget):
         btn.setToolTip(tooltip)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.clicked.connect(slot)
+        # TASK 1.1: Forçar cor do texto para PRETO para contraste no rodapé cinza.
+        btn.setStyleSheet(f"color: {COLOR_TEXT};")
         return btn
 
     def load_page(self, index):
@@ -195,5 +197,5 @@ class RightViewer(QWidget):
         # Usually user expects 100%.
         # If scale=1.0 is 72 DPI, scale=2.0 is 144 DPI (Retina/High Quality).
         # Let's say 2.0 is 100% visual quality.
-        percentage = int(self.zoom_level * 50)
+        percentage = int(self.zoom_level * 100)
         self.lbl_zoom.setText(f"{percentage}%")
