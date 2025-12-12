@@ -95,6 +95,7 @@ STYLESHEET = f"""
 
     QLabel#ThumbnailLabel[selected="true"] {{
         border: 3px solid {COLOR_PRIMARY};
+        background-color: #F0FFF4;
     }}
 
     /* Right Viewer (Light Theme) */
