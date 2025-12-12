@@ -12,13 +12,13 @@ class LeftPanel(QFrame):
         self.setObjectName("LeftPanel") # Used for dark background in styles.py
         self.init_ui()
 
-    def create_button(self, icon, tooltip, action_name, data=None, connect_default=True):
-        btn = QPushButton(icon)
+    def create_button(self, text, tooltip, action_name, data=None, connect_default=True):
+        btn = QPushButton(text)
         btn.setToolTip(tooltip)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        # SOLUÇÃO DE CONTRASTE: Mantém font-size: 20px; confiando no estilo global para a cor (branca).
-        btn.setStyleSheet("font-size: 20px;")
+        # Removed specific font-size to inherit from global style
+        # btn.setStyleSheet("font-size: 20px;")
 
         if connect_default:
             btn.clicked.connect(lambda: self.action_triggered.emit(action_name, data))
@@ -34,18 +34,18 @@ class LeftPanel(QFrame):
 
         # File Operations
         # Corrigido para usar connect_default=False para controle de conexão local
-        self.btn_load = self.create_button("⬆️", "Carregar PDFs", "load_pdf", connect_default=False)
+        self.btn_load = self.create_button("Carregar PDFs", "Carregar PDFs", "load_pdf", connect_default=False)
         self.btn_load.clicked.connect(self.on_load_clicked)
         layout.addWidget(self.btn_load)
 
         # Actions
-        self.btn_merge = self.create_button("➕", "Unificar PDFs", "merge")
+        self.btn_merge = self.create_button("Unificar PDFs", "Unificar PDFs", "merge")
         layout.addWidget(self.btn_merge)
 
-        self.btn_split = self.create_button("✂️", "Separar Páginas Selecionadas", "split")
+        self.btn_split = self.create_button("Separar Páginas", "Separar Páginas Selecionadas", "split")
         layout.addWidget(self.btn_split)
 
-        self.btn_ocr = self.create_button("🔍", "Executar OCR (Texto Pesquisável)", "ocr")
+        self.btn_ocr = self.create_button("Executar OCR", "Executar OCR (Texto Pesquisável)", "ocr")
         layout.addWidget(self.btn_ocr)
 
         # Compression Group
@@ -53,11 +53,11 @@ class LeftPanel(QFrame):
         group_compress.setStyleSheet(group_style)
         layout_compress = QVBoxLayout(group_compress)
 
-        # Ícones de compactação corrigidos
-        self.btn_compress_low = self.create_button("⬇️", "Compactação Baixa (Estrutura)", "compress", "low")
+        # Ícones de compactação substituídos por texto
+        self.btn_compress_low = self.create_button("Compactação Baixa", "Compactação Baixa (Estrutura)", "compress", "low")
         layout_compress.addWidget(self.btn_compress_low)
 
-        self.btn_compress_high = self.create_button("📉", "Compactação Alta (Otimizar Imagens)", "compress", "high")
+        self.btn_compress_high = self.create_button("Compactação Alta", "Compactação Alta (Otimizar Imagens)", "compress", "high")
         layout_compress.addWidget(self.btn_compress_high)
         layout.addWidget(group_compress)
 
@@ -73,15 +73,15 @@ class LeftPanel(QFrame):
         layout.addWidget(self.input_selection)
 
         # QoL and Deletion
-        self.btn_rotate = self.create_button("🔄", "Rotacionar Páginas Selecionadas (90°)", "rotate_selected")
+        self.btn_rotate = self.create_button("Rotacionar Seleção", "Rotacionar Páginas Selecionadas (90°)", "rotate_selected")
         layout.addWidget(self.btn_rotate)
 
-        self.btn_clear = self.create_button("🧹", "Limpar Sessão", "clear_session")
+        self.btn_clear = self.create_button("Limpar Sessão", "Limpar Sessão", "clear_session")
         # Estilo neutro corrigido (Dark Gray)
         self.btn_clear.setStyleSheet(f"QPushButton {{ background-color: #444444; color: white; }} QPushButton:hover {{ background-color: #333333; }}")
         layout.addWidget(self.btn_clear)
 
-        self.btn_delete = self.create_button("❌", "Excluir Seleção", "delete")
+        self.btn_delete = self.create_button("Excluir Seleção", "Excluir Seleção", "delete")
         self.btn_delete.setObjectName("DeleteButton")
         layout.addWidget(self.btn_delete)
 

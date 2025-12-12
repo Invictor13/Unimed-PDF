@@ -16,7 +16,6 @@ BUTTON_STYLE = f"""
         border-radius: 4px;
         font-weight: bold;
         min-height: 30px;
-        min-width: 100px;
         font-size: 16px;
     }}
     QPushButton:hover {{

@@ -8,6 +8,7 @@ from pypdf import PdfReader, PdfWriter
 
 class PDFManager:
     def __init__(self):
+        # Refactored for Task 4
         self.doc = None  # Current PyMuPDF document
         self.filepath = None
         self.page_order = [] # List of tuples: (original_doc_page_index, file_name, file_id)
