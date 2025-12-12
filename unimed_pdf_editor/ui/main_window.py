@@ -425,6 +425,7 @@ class MainWindow(QMainWindow):
         if not self.pdf_manager.filepath:
             return
 
+        # Improved OCR progress
         from ..core.ocr_engine import OCREngine
         ocr = OCREngine()
 
