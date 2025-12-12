@@ -22,7 +22,20 @@ class Thumbnail(QWidget):
         self.image_label.setFixedSize(150, 200) # Fixed thumbnail size
 
         # Load image
-        image = QImage.fromData(image_data)
+        if isinstance(image_data, dict) and 'samples' in image_data:
+            # Optimized path: direct load from raw samples
+            # QImage references the data, so it must stay valid until we convert to QPixmap
+            image = QImage(
+                image_data['samples'],
+                image_data['width'],
+                image_data['height'],
+                image_data['stride'],
+                QImage.Format.Format_RGB888
+            )
+        else:
+            # Legacy/Fallback path
+            image = QImage.fromData(image_data)
+
         pixmap = QPixmap.fromImage(image)
         # Scale to fit label
         pixmap = pixmap.scaled(140, 190, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)

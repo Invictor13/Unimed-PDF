@@ -131,9 +131,19 @@ class PDFManager:
             return self.thumbnails[original_index]
 
         page = self.doc.load_page(original_index)
-        pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale))
+        # alpha=False saves memory and processing time (3 bytes/pixel vs 4)
+        pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
 
-        img_data = pix.tobytes("ppm")
+        # Optimization: Return raw samples instead of encoding to PPM
+        # We copy samples to bytes to ensure memory safety when pix is garbage collected
+        img_data = {
+            "width": pix.width,
+            "height": pix.height,
+            "stride": pix.stride,
+            "samples": bytes(pix.samples),
+            "format": "RGB888"
+        }
+
         if scale == 0.3:
             self.thumbnails[original_index] = img_data
         return img_data
