@@ -351,10 +351,7 @@ class CenterCanvas(QWidget):
         # Clear existing items
         layout = self.container.layout()
         if layout:
-            while layout.count():
-                item = layout.takeAt(0)
-                if item.widget():
-                    item.widget().deleteLater()
+            self._clear_layout(layout)
 
         self.thumbnails = []
         self.doc_cards = []

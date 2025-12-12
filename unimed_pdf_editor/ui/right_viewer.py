@@ -8,6 +8,7 @@ class RightViewer(QWidget):
     action_triggered = pyqtSignal(str, object)
 
     def __init__(self, main_window):
+        # Refactored for Task 4
         super().__init__()
         self.main_window = main_window
         self.current_page_index = None

@@ -111,6 +111,7 @@ class Worker(QObject):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        # Refactored for Task 1 and 3
         self.setWindowTitle("UNIMED - Editor de PDF")
         self.resize(1200, 800)
         self.setStyleSheet(STYLESHEET)
