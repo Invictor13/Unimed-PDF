@@ -4,22 +4,62 @@ import uuid
 import fitz  # PyMuPDF
 from PIL import Image
 import io
-from pypdf import PdfReader, PdfWriter
+import copy
 
 class PDFManager:
     def __init__(self):
-        # Refactored for Task 4
-        self.doc = None  # Current PyMuPDF document
+        self.doc = None  # Current PyMuPDF document (Physical Source)
         self.filepath = None
-        self.page_order = [] # List of tuples: (original_doc_page_index, file_name, file_id)
-        self.thumbnails = {} # Cache for thumbnails
-        self.fitz = fitz # Export fitz module for consumers
+        # Page Order: list of (original_doc_page_index, file_name, file_id, rotation)
+        self.page_order = []
+        self.thumbnails = {} # Cache: key=(original_index, rotation) -> value=img_data
+        self.fitz = fitz
+
+        # Undo/Redo Stacks
+        self.history_stack = []
+        self.redo_stack = []
+        self._is_undoing = False # Flag to prevent pushing to stack during undo/redo
+
+    def _save_state(self):
+        """Saves current state to history stack."""
+        if self._is_undoing:
+            return
+        # Deep copy of page_order is enough as it defines the state
+        self.history_stack.append(copy.deepcopy(self.page_order))
+        self.redo_stack.clear() # Clear redo on new action
+
+        # Limit stack size to prevent memory issues (e.g., 50 actions)
+        if len(self.history_stack) > 50:
+            self.history_stack.pop(0)
+
+    def undo(self):
+        if not self.history_stack:
+            return False
+
+        self._is_undoing = True
+        try:
+            # Save current state to redo stack
+            self.redo_stack.append(copy.deepcopy(self.page_order))
+            # Pop previous state
+            self.page_order = self.history_stack.pop()
+            return True
+        finally:
+            self._is_undoing = False
+
+    def redo(self):
+        if not self.redo_stack:
+            return False
+
+        self._is_undoing = True
+        try:
+            self.history_stack.append(copy.deepcopy(self.page_order))
+            self.page_order = self.redo_stack.pop()
+            return True
+        finally:
+            self._is_undoing = False
 
     def load_pdf(self, input_data):
-        """
-        Loads one or multiple PDF files.
-        input_data: str (filepath) or list of str (filepaths)
-        """
+        self._save_state()
         filepaths = input_data if isinstance(input_data, list) else [input_data]
         total_loaded = 0
 
@@ -36,14 +76,12 @@ class PDFManager:
                 else:
                     current_count = len(self.doc)
                     self.doc.insert_pdf(new_doc)
-                    # new_doc is merged into self.doc
 
                 new_pages_count = len(new_doc)
 
-                # Add new page indices with file tracking info
+                # Add new page indices with 0 rotation default
                 for i in range(new_pages_count):
-                    # The page index in the merged doc is current_count + i
-                    self.page_order.append((current_count + i, file_name, file_id))
+                    self.page_order.append((current_count + i, file_name, file_id, 0))
 
                 total_loaded += 1
 
@@ -54,62 +92,46 @@ class PDFManager:
 
     def rotate_page(self, page_index, angle=90):
         if 0 <= page_index < len(self.page_order):
-            original_index, _, _ = self.page_order[page_index]
-            page = self.doc.load_page(original_index)
-            page.set_rotation(page.rotation + angle)
-
-            if original_index in self.thumbnails:
-                del self.thumbnails[original_index]
+            self._save_state()
+            idx, fname, fid, rot = self.page_order[page_index]
+            new_rot = (rot + angle) % 360
+            self.page_order[page_index] = (idx, fname, fid, new_rot)
 
     def get_page_count(self):
         return len(self.page_order)
 
     def get_page_info(self, page_index):
         if 0 <= page_index < len(self.page_order):
-            idx, fname, fid = self.page_order[page_index]
-            return {'original_index': idx, 'file_name': fname, 'file_id': fid}
+            idx, fname, fid, rot = self.page_order[page_index]
+            return {'original_index': idx, 'file_name': fname, 'file_id': fid, 'rotation': rot}
         return None
 
     def get_files_in_order(self):
-        """Returns a list of unique files in their current visual order.
-           Returns: List of dicts {'file_id': str, 'file_name': str, 'page_count': int}
-        """
         files = []
         seen_ids = set()
-
-        # Determine order based on the first occurrence of each file_id in page_order
-        # This assumes we want to present files based on where they start.
-        # If pages are mixed, this will still extract unique files.
-        for _, fname, fid in self.page_order:
+        for _, fname, fid, _ in self.page_order:
             if fid not in seen_ids:
                 seen_ids.add(fid)
-                # Count pages for this file
                 count = sum(1 for item in self.page_order if item[2] == fid)
                 files.append({'file_id': fid, 'file_name': fname, 'page_count': count})
-
         return files
 
     def reorder_file(self, file_id, new_index):
-        """Moves all pages associated with file_id to a position corresponding to new_index in the file list."""
+        self._save_state()
         current_files = self.get_files_in_order()
         if not (0 <= new_index < len(current_files)):
             return
 
-        # Identify the file being moved
         target_file = next((f for f in current_files if f['file_id'] == file_id), None)
         if not target_file:
             return
 
-        # Remove from current list and insert at new index to get target file order
         current_files_list = [f['file_id'] for f in current_files]
         current_idx = current_files_list.index(file_id)
         current_files_list.pop(current_idx)
         current_files_list.insert(new_index, file_id)
 
-        # Reconstruct page_order based on new file order
         new_page_order = []
-
-        # Group current pages by file_id
         pages_by_file = {}
         for item in self.page_order:
             fid = item[2]
@@ -117,7 +139,6 @@ class PDFManager:
                 pages_by_file[fid] = []
             pages_by_file[fid].append(item)
 
-        # Append pages in the new file order
         for fid in current_files_list:
             if fid in pages_by_file:
                 new_page_order.extend(pages_by_file[fid])
@@ -125,17 +146,24 @@ class PDFManager:
         self.page_order = new_page_order
 
     def get_thumbnail(self, page_index, scale=0.3):
-        original_index, _, _ = self.page_order[page_index]
+        if not (0 <= page_index < len(self.page_order)):
+             return None
 
-        if original_index in self.thumbnails and scale == 0.3:
-            return self.thumbnails[original_index]
+        original_index, _, _, rotation = self.page_order[page_index]
+
+        # Cache key includes rotation
+        cache_key = (original_index, rotation)
+
+        if cache_key in self.thumbnails and scale == 0.3:
+            return self.thumbnails[cache_key]
 
         page = self.doc.load_page(original_index)
-        # alpha=False saves memory and processing time (3 bytes/pixel vs 4)
+
+        # Apply rotation
+        page.set_rotation(rotation)
+
         pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
 
-        # Optimization: Return raw samples instead of encoding to PPM
-        # We copy samples to bytes to ensure memory safety when pix is garbage collected
         img_data = {
             "width": pix.width,
             "height": pix.height,
@@ -145,74 +173,52 @@ class PDFManager:
         }
 
         if scale == 0.3:
-            self.thumbnails[original_index] = img_data
+            self.thumbnails[cache_key] = img_data
         return img_data
 
     def get_page_image(self, page_index, scale=2.0):
-        original_index, _, _ = self.page_order[page_index]
+        original_index, _, _, rotation = self.page_order[page_index]
         page = self.doc.load_page(original_index)
+        page.set_rotation(rotation)
         pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale))
         return pix.tobytes("ppm")
 
     def move_page(self, from_index, to_index):
         if 0 <= from_index < len(self.page_order) and 0 <= to_index < len(self.page_order):
+            self._save_state()
             item = self.page_order.pop(from_index)
             self.page_order.insert(to_index, item)
 
     def delete_pages(self, indices):
-        """
-        Deletes pages from the document and page order.
-        Optimized to remove physical pages from self.doc to save memory.
-        """
-        # 1. Collect info about pages to delete (UI Index, Original Doc Index)
-        pages_to_delete = []
-        for idx in indices:
-            if 0 <= idx < len(self.page_order):
-                original_idx = self.page_order[idx][0]
-                pages_to_delete.append((idx, original_idx))
-
-        if not pages_to_delete:
+        """Soft delete: Remove from page_order only."""
+        if not indices:
             return
 
-        # Sort by UI index desc to remove from self.page_order safely
-        pages_to_delete.sort(key=lambda x: x[0], reverse=True)
+        self._save_state()
 
-        # 2. Remove from page_order
-        for idx, _ in pages_to_delete:
-            del self.page_order[idx]
-
-        # 3. Get original indices to delete from physical doc, sort desc
-        # We use a set to avoid duplicates if for some reason multiple UI pages pointed to same doc page (unlikely here but good practice)
-        physical_indices_to_delete = sorted(list(set([p[1] for p in pages_to_delete])), reverse=True)
-
-        # 4. Delete from physical doc and update references
-        # This requires updating both thumbnails keys and page_order references
-        for del_idx in physical_indices_to_delete:
-            self.doc.delete_page(del_idx)
-
-            # Update thumbnails mapping: remove deleted, shift others
-            new_thumbnails = {}
-            for k, v in self.thumbnails.items():
-                if k == del_idx:
-                    continue # Deleted
-                elif k > del_idx:
-                    new_thumbnails[k - 1] = v # Shift down
-                else:
-                    new_thumbnails[k] = v # Keep same
-            self.thumbnails = new_thumbnails
-
-            # Update page_order references
-            # Every page that had an original_index > del_idx must be decremented
-            for i in range(len(self.page_order)):
-                oid, fname, fid = self.page_order[i]
-                if oid > del_idx:
-                    self.page_order[i] = (oid - 1, fname, fid)
+        # Sort desc to delete safely
+        indices = sorted(indices, reverse=True)
+        for idx in indices:
+            if 0 <= idx < len(self.page_order):
+                del self.page_order[idx]
 
     def save_pdf(self, output_path):
         output_doc = fitz.open()
         for item in self.page_order:
-            original_idx = item[0]
-            output_doc.insert_pdf(self.doc, from_page=original_idx, to_page=original_idx)
+            original_idx, _, _, rotation = item
+
+            # We must load the page, rotate it, and then insert?
+            # insert_pdf copies the page. If we want to save rotation, we should ensure the source is rotated
+            # OR we use insert_pdf with rotation logic.
+            # fitz.Document.insert_pdf does NOT have a rotation param per page easily (it merges docs).
+            # Easier: Create a temp single-page doc, rotate it, then insert.
+            # OR: simply set rotation on self.doc page before inserting (but that modifies self.doc state? Yes).
+            # But we are allowed to modify self.doc state as long as we reset it? No, that's risky.
+
+            # Better: self.doc.insert_pdf copies the page stream.
+            # Rotation is a page attribute.
+
+            output_doc.insert_pdf(self.doc, from_page=original_idx, to_page=original_idx, rotate=rotation)
 
         output_doc.save(output_path)
         output_doc.close()
@@ -221,122 +227,87 @@ class PDFManager:
         output_doc = fitz.open()
         for idx in selected_indices:
             if 0 <= idx < len(self.page_order):
-                original_idx = self.page_order[idx][0]
-                output_doc.insert_pdf(self.doc, from_page=original_idx, to_page=original_idx)
+                original_idx, _, _, rotation = self.page_order[idx]
+                output_doc.insert_pdf(self.doc, from_page=original_idx, to_page=original_idx, rotate=rotation)
 
         output_doc.save(output_path)
         output_doc.close()
 
     def clear_session(self):
-        """Clears the current session data."""
         self.doc = None
         self.filepath = None
         self.page_order = []
         self.thumbnails = {}
+        self.history_stack = []
+        self.redo_stack = []
 
     def compress_pdf(self, output_path, level="medium"):
         deflate = True
         garbage = 0
         clean = False
 
-        # Determine compression parameters
         if level == "low":
             garbage = 1
         elif level == "medium":
             garbage = 2
             deflate = True
         elif level == "high":
-            garbage = 4  # Aggressive garbage collection
+            garbage = 4
             deflate = True
             clean = True
 
-        # Create a temporary subset document with the current page order
         subset_doc = fitz.open()
         for item in self.page_order:
-            original_idx = item[0]
-            subset_doc.insert_pdf(self.doc, from_page=original_idx, to_page=original_idx)
+            original_idx, _, _, rotation = item
+            subset_doc.insert_pdf(self.doc, from_page=original_idx, to_page=original_idx, rotate=rotation)
 
-        # For high compression, attempt to downsample images
         if level == "high":
             processed_xrefs = set()
             try:
-                # Iterate over all pages
                 for page_num in range(len(subset_doc)):
                     page = subset_doc[page_num]
                     image_list = page.get_images()
 
                     for img in image_list:
                         xref = img[0]
-                        # Skip if already processed or invalid
                         if xref <= 0 or xref in processed_xrefs:
                             continue
-
                         processed_xrefs.add(xref)
 
                         try:
-                            # Use fitz.Pixmap(doc, xref) which is the most reliable way to get image content
                             pix = fitz.Pixmap(subset_doc, xref)
-
-                            # Check colorspace, convert to RGB if necessary (e.g. CMYK) to allow JPEG conversion
                             if pix.n - pix.alpha > 3:
                                 pix = fitz.Pixmap(fitz.csRGB, pix)
-
-                            # Remove alpha channel if present (JPEG does not support transparency)
                             if pix.alpha:
                                 pix = fitz.Pixmap(pix, 0)
 
-                            # Target DPI logic: approx 150 DPI
-                            # Assuming standard A4 (approx 600x840 points), 150 DPI is approx 1240x1754 pixels
-                            # We set a max dimension safe limit of 1500px to ensure reduction
                             max_dim = 1500
-
-                            # Optimization strategy
                             should_downsample = pix.width > max_dim or pix.height > max_dim
 
-                            # Always attempt to compress if it's High mode, even if dimensions are okay.
-                            # We create a new pixmap to ensure we have control over the data
-
-                            # NOTE: Fixed the issue where new_pix might be garbage collected prematurely or incorrect scale used
                             if should_downsample:
                                 scale = max_dim / max(pix.width, pix.height)
                                 new_width = int(pix.width * scale)
                                 new_height = int(pix.height * scale)
                                 new_pix = fitz.Pixmap(pix, new_width, new_height)
                             else:
-                                new_pix = fitz.Pixmap(pix) # Copy
+                                new_pix = fitz.Pixmap(pix)
 
-                            # Convert to JPEG stream with a balanced compression (Quality 50)
-                            # Optimized compression
-                            stream = new_pix.tobytes("jpeg", jpg_quality=50) # Alterado de 30 para 50
+                            stream = new_pix.tobytes("jpeg", jpg_quality=50)
 
-                            # Update the object stream and essential dictionary keys
-                            # Use compress=False because we are providing already compressed JPEG data
                             subset_doc.update_stream(xref, stream, compress=False)
-
-                            # Update metadata to reflect new dimensions and JPEG encoding
-                            # Note: Values must be strings for xref_set_key
                             subset_doc.xref_set_key(xref, "Width", str(new_pix.width))
                             subset_doc.xref_set_key(xref, "Height", str(new_pix.height))
                             subset_doc.xref_set_key(xref, "Filter", "/DCTDecode")
                             subset_doc.xref_set_key(xref, "BitsPerComponent", "8")
-
-                            # Update ColorSpace based on new pixmap
-                            if new_pix.n <= 2: # Grayscale or Mono
+                            if new_pix.n <= 2:
                                 subset_doc.xref_set_key(xref, "ColorSpace", "/DeviceGray")
                             else:
                                 subset_doc.xref_set_key(xref, "ColorSpace", "/DeviceRGB")
-
-                            new_pix = None
-                            pix = None
                         except Exception as e:
                             print(f"Failed to compress image xref {xref}: {e}")
-                            # If anything fails for an image, skip it and continue
                             continue
             except Exception as e:
-                print(f"Global compression error: {e}")
-                # If global processing fails, proceed to save what we have
                 pass
 
-        # Save with optimized parameters
         subset_doc.save(output_path, garbage=garbage, deflate=deflate, clean=clean)
         subset_doc.close()

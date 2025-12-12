@@ -1,7 +1,7 @@
 
 from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QFrame, QSplitter, QFileDialog, QMessageBox, QProgressDialog, QApplication, QLabel, QInputDialog
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
-from PyQt6.QtGui import QPixmap, QIcon
+from PyQt6.QtGui import QPixmap, QIcon, QKeySequence, QShortcut
 from .styles import STYLESHEET, COLOR_PRIMARY
 from .left_panel import LeftPanel
 from .center_canvas import CenterCanvas
@@ -33,7 +33,6 @@ class Header(QFrame):
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
 class LoadingDialog(QProgressDialog):
-    # (MANTIDO DO ORIGINAL)
     def __init__(self, message, parent=None):
         super().__init__(parent)
         self.setModal(True)
@@ -45,7 +44,6 @@ class LoadingDialog(QProgressDialog):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
 
-        # Logo
         logo_label = QLabel()
         logo_path = os.path.join("assets", "logo.png")
         if os.path.exists(logo_path):
@@ -54,7 +52,6 @@ class LoadingDialog(QProgressDialog):
                  logo_label.setPixmap(pixmap.scaled(60, 60, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         layout.addWidget(logo_label)
 
-        # Text
         text_label = QLabel(message)
         text_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #333333; margin-left: 10px; border: none;")
         layout.addWidget(text_label)
@@ -68,23 +65,17 @@ class LoadingDialog(QProgressDialog):
         """)
 
     def set_progress(self, current, total):
-        # Transforma o dialog de indeterminado (0,0) para determinístico na primeira atualização.
         if self.maximum() == 0 and total > 0:
             self.setRange(0, total)
-
-        # Atualiza a mensagem para mostrar o progresso real (ex: "Executando OCR... (5/10)")
         base_text = self.labelText().split('(')[0].strip()
         self.setLabelText(f"{base_text} ({current}/{total})")
-
         self.setValue(current)
 
     def update_progress(self, current, total):
-        # Essencial para que a UI se atualize e não trave durante o processo
         QApplication.processEvents()
         self.set_progress(current, total)
 
 class Worker(QObject):
-    # (MANTIDO DO ORIGINAL)
     finished = pyqtSignal(object)
     error = pyqtSignal(str)
     progress = pyqtSignal(int, int)
@@ -97,9 +88,7 @@ class Worker(QObject):
 
     def run(self):
         try:
-            # NOVO: Lógica clara para injetar o callback de progresso na função principal.
             if 'progress_callback' in self.kwargs:
-                 # Chama a função principal (ex: ocr.make_searchable) passando o progress.emit como callback
                  result = self.func(*self.args, progress_callback=self.kwargs['progress_callback'])
             else:
                  result = self.func(*self.args, **self.kwargs)
@@ -107,16 +96,15 @@ class Worker(QObject):
         except Exception as e:
             self.error.emit(str(e))
 
-
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        # Refactored for Task 1 and 3
         self.setWindowTitle("UNIMED - Editor de PDF")
         self.resize(1200, 800)
         self.setStyleSheet(STYLESHEET)
         self.pdf_manager = PDFManager()
         self.init_ui()
+        self.setup_shortcuts()
 
     def create_pane_with_title(self, title_text, widget):
         container = QWidget()
@@ -148,32 +136,27 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # 1. HEADER (TOPO)
+        # 1. HEADER
         self.header = Header(self)
         main_layout.addWidget(self.header)
 
-        # 2. CORPO (Horizontal Splitter)
+        # 2. BODY
         content_layout = QHBoxLayout()
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(0)
 
-        # Left Panel (Fixed Width)
+        # Left Panel
         self.left_panel = LeftPanel(self)
         self.left_panel.setFixedWidth(250)
 
-        # Center and Right (Splitter)
+        # Splitter
         self.center_canvas = CenterCanvas(self)
         self.right_viewer = RightViewer(self)
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
-
-        # Adicionando o Center Canvas e o Right Viewer com seus respectivos títulos
         self.splitter.addWidget(self.create_pane_with_title("Canvas de Edição", self.center_canvas))
         self.splitter.addWidget(self.create_pane_with_title("Visualização Unitária", self.right_viewer))
-
         self.splitter.setCollapsible(1, True)
-
-        # Balanço 50/50
         self.splitter.setSizes([1, 1])
         self.splitter.setStretchFactor(0, 1)
         self.splitter.setStretchFactor(1, 1)
@@ -190,7 +173,26 @@ class MainWindow(QMainWindow):
         self.center_canvas.request_viewer.connect(self.open_viewer)
         self.right_viewer.action_triggered.connect(self.handle_viewer_action)
 
-    # (MANTENHA O RESTANTE DAS FUNÇÕES AUXILIARES E DE AÇÃO)
+    def setup_shortcuts(self):
+        self.shortcut_undo = QShortcut(QKeySequence("Ctrl+Z"), self)
+        self.shortcut_undo.activated.connect(self.do_undo)
+
+        self.shortcut_redo = QShortcut(QKeySequence("Ctrl+Y"), self)
+        self.shortcut_redo.activated.connect(self.do_redo)
+
+    def do_undo(self):
+        if self.pdf_manager.undo():
+            self.center_canvas.refresh_thumbnails()
+            # Also update viewer if current page affected?
+            # Ideally yes, but refreshing thumbnails is key.
+            # And clear selection to avoid index errors
+            self.center_canvas.clear_selection()
+
+    def do_redo(self):
+        if self.pdf_manager.redo():
+            self.center_canvas.refresh_thumbnails()
+            self.center_canvas.clear_selection()
+
     def handle_action(self, action_name, data=None):
         if action_name == "load_pdf":
             self.load_pdf(data)
@@ -237,7 +239,6 @@ class MainWindow(QMainWindow):
     def open_viewer(self, page_index):
         if self.splitter.sizes()[1] == 0:
              self.splitter.setSizes([700, 300])
-
         self.right_viewer.load_page(page_index)
 
     def handle_viewer_action(self, action, data):
@@ -245,22 +246,18 @@ class MainWindow(QMainWindow):
             self.delete_single_page_from_viewer()
         elif action == "download_page":
             self.export_single_page(data)
-        elif action == "rotate_page": # NOVO: Ação para o botão de rotação unitária
+        elif action == "rotate_page":
             self.rotate_single_page_from_viewer()
 
-    def rotate_single_page_from_viewer(self): # NOVO MÉTODO
+    def rotate_single_page_from_viewer(self):
         idx = self.right_viewer.current_page_index
         if idx is not None:
              self.show_loading("Rotacionando página...")
-
              def task():
                  self.pdf_manager.rotate_page(idx, 90)
-
              def success(_):
-                 # Recarrega a página no viewer e atualiza as miniaturas
                  self.right_viewer.load_page(idx)
                  self.center_canvas.refresh_thumbnails()
-
              self.execute_task(task, success_callback=success)
 
     def delete_single_page_from_viewer(self):
@@ -272,7 +269,6 @@ class MainWindow(QMainWindow):
              if confirm == QMessageBox.StandardButton.Yes:
                 self.pdf_manager.delete_pages([idx])
                 self.center_canvas.refresh_thumbnails()
-                # Determine next page to show
                 new_total = self.pdf_manager.get_page_count()
                 if new_total > 0:
                     new_idx = min(idx, new_total - 1)
@@ -295,19 +291,22 @@ class MainWindow(QMainWindow):
             self.show_loading("Exportando página...")
 
             def task():
-                # Extract single page based on filter
                 if selected_filter.endswith('.png)') or selected_filter.endswith('.jpg)'):
-                    # Render page as image
-                    original_idx = self.pdf_manager.page_order[idx][0]
+                    # For export, we need to respect rotation
+                    # get_page_image handles rotation now?
+                    # No, get_page_image calls get_pixmap with rotation logic in PDFManager
+                    pix_bytes = self.pdf_manager.get_page_image(idx, scale=2.0) # ppm
+                    # Need to save bytes.
+                    # Or better: use fitz in task
+                    original_idx, _, _, rot = self.pdf_manager.page_order[idx]
                     page = self.pdf_manager.doc.load_page(original_idx)
-                    # Render with high quality (300 DPI)
+                    page.set_rotation(rot)
                     pix = page.get_pixmap(dpi=300)
                     pix.save(output_path)
                 else:
-                    # Save single page PDF
                     new_doc = self.pdf_manager.fitz.open()
-                    original_idx = self.pdf_manager.page_order[idx][0]
-                    new_doc.insert_pdf(self.pdf_manager.doc, from_page=original_idx, to_page=original_idx)
+                    original_idx, _, _, rot = self.pdf_manager.page_order[idx]
+                    new_doc.insert_pdf(self.pdf_manager.doc, from_page=original_idx, to_page=original_idx, rotate=rot)
                     new_doc.save(output_path)
                     new_doc.close()
 
@@ -328,7 +327,7 @@ class MainWindow(QMainWindow):
 
     def clear_session(self):
         confirm = QMessageBox.question(self, "Confirmar",
-                                       "Tem certeza que deseja limpar a sessão? Todas as alterações não salvas serão perdidas.",
+                                       "Tem certeza que deseja limpar a sessão?",
                                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if confirm == QMessageBox.StandardButton.Yes:
             self.pdf_manager.clear_session()
@@ -338,16 +337,13 @@ class MainWindow(QMainWindow):
 
     def execute_task(self, func, *args, success_callback=None, with_progress=False, **kwargs):
         self.thread = QThread()
-
-        # O Worker precisa ser criado com o progress_callback nos seus kwargs se for para ter progresso.
         kwargs_with_progress = kwargs.copy()
         worker = Worker(func, *args, **kwargs_with_progress)
 
         if with_progress:
-             # Injeta o emitter do worker nos kwargs para ser usado dentro do Worker.run
              worker.kwargs['progress_callback'] = worker.progress.emit
 
-        self.worker = worker # Armazena a referência
+        self.worker = worker
         self.worker.moveToThread(self.thread)
 
         self.thread.started.connect(self.worker.run)
@@ -363,7 +359,6 @@ class MainWindow(QMainWindow):
         self.worker.error.connect(self.hide_loading)
 
         if with_progress:
-            # Conecta o sinal de progresso do worker ao update_progress do dialog
             self.worker.progress.connect(self.loading_dialog.update_progress)
 
         self.thread.start()
@@ -386,10 +381,8 @@ class MainWindow(QMainWindow):
         output_path, _ = QFileDialog.getSaveFileName(self, "Salvar PDF Unificado", "unificado.pdf", "PDF Files (*.pdf)")
         if output_path:
             self.show_loading("Unificando PDF...")
-
             def success(_):
                 QMessageBox.information(self, "Sucesso", "PDF unificado salvo com sucesso!")
-
             self.execute_task(self.pdf_manager.save_pdf, output_path, success_callback=success)
 
     def split_pdf(self):
@@ -401,20 +394,16 @@ class MainWindow(QMainWindow):
         output_path, _ = QFileDialog.getSaveFileName(self, "Salvar PDF Separado", "separado.pdf", "PDF Files (*.pdf)")
         if output_path:
             self.show_loading("Separando PDF...")
-
             def success(_):
                 QMessageBox.information(self, "Sucesso", "PDF separado salvo com sucesso!")
-
             self.execute_task(self.pdf_manager.split_pdf, indices, output_path, success_callback=success)
 
     def compress_pdf(self, level):
         output_path, _ = QFileDialog.getSaveFileName(self, "Salvar PDF Compactado", "compactado.pdf", "PDF Files (*.pdf)")
         if output_path:
             self.show_loading(f"Compactando PDF (Nível: {level})...")
-
             def success(_):
                 QMessageBox.information(self, "Sucesso", f"PDF compactado ({level}) salvo com sucesso!")
-
             self.execute_task(self.pdf_manager.compress_pdf, output_path, level, success_callback=success)
 
     def delete_selected_pages(self):
@@ -432,23 +421,17 @@ class MainWindow(QMainWindow):
         if not self.pdf_manager.filepath:
             return
 
-        # Improved OCR progress
         from ..core.ocr_engine import OCREngine
         import tempfile
         ocr = OCREngine()
 
         output_path, _ = QFileDialog.getSaveFileName(self, "Salvar PDF Pesquisável", "ocr.pdf", "PDF Files (*.pdf)")
         if output_path:
-            # Passa a mensagem base. O dialog se encarrega do (0/0)
             self.show_loading("Executando OCR...")
-
-            # Security Fix: Save current state to temp file to ensure OCR processes
-            # the modified document (respecting page deletions/reorders) instead of the original file.
             fd, temp_path = tempfile.mkstemp(suffix=".pdf")
             os.close(fd)
 
             try:
-                # Save current in-memory state to temp file
                 self.pdf_manager.save_pdf(temp_path)
             except Exception as e:
                 self.hide_loading()
@@ -461,13 +444,9 @@ class MainWindow(QMainWindow):
                 try:
                     return ocr.make_searchable(temp_path, output_path, progress_callback)
                 finally:
-                    # Cleanup inside the thread/task might be tricky if it crashes,
-                    # but we can try. However, since we created it in the main thread,
-                    # we should probably clean it up in the success callback.
                     pass
 
             def success(result):
-                # Cleanup temp file
                 if os.path.exists(temp_path):
                     try:
                         os.remove(temp_path)
@@ -480,5 +459,4 @@ class MainWindow(QMainWindow):
                 else:
                      QMessageBox.critical(self, "Erro", f"Falha no OCR: {msg}")
 
-            # Define with_progress=True para conectar o sinal de progresso.
             self.execute_task(task, success_callback=success, with_progress=True)
