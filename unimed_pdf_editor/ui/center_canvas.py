@@ -417,7 +417,7 @@ class CenterCanvas(QWidget):
         self.zoom_slider = QSlider(Qt.Orientation.Horizontal)
         self.zoom_slider.setRange(10, 100)
         self.zoom_slider.setValue(50)
-        self.zoom_slider.setFixedWidth(150)
+        self.zoom_slider.setWidth(150)
         self.zoom_slider.valueChanged.connect(self.set_zoom)
         toolbar_layout.addWidget(self.zoom_slider)
 
