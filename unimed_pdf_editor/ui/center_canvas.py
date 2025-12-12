@@ -97,6 +97,7 @@ class ContainerWidget(QWidget):
         self.start_point = QPoint()
         self.end_point = QPoint()
         self.lasso_rect = QRect()
+        self.drop_indicator_rect = QRect()
 
     def mousePressEvent(self, event):
         if self.mode == 'pages' and event.button() == Qt.MouseButton.LeftButton:
@@ -129,11 +130,17 @@ class ContainerWidget(QWidget):
 
     def paintEvent(self, event):
         super().paintEvent(event)
+        painter = QPainter(self)
+
         if self.selection_active and not self.lasso_rect.isNull():
-            painter = QPainter(self)
             painter.setPen(QPen(QColor(0, 154, 62), 2))
             painter.setBrush(QBrush(QColor(0, 154, 62, 50)))
             painter.drawRect(self.lasso_rect)
+
+        if not self.drop_indicator_rect.isNull():
+            painter.setPen(QPen(QColor(0, 154, 62), 3))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawLine(self.drop_indicator_rect.topLeft(), self.drop_indicator_rect.bottomLeft())
 
     def set_thumbnails(self, thumbnails):
         self.thumbnails_ref = thumbnails
@@ -157,13 +164,78 @@ class ContainerWidget(QWidget):
             else:
                 event.ignore()
 
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.accept()
+            return
+
+        if self.mode == 'pages':
+            if event.mimeData().hasText() and not event.mimeData().hasFormat("application/x-unimed-doc-index"):
+                try:
+                    source_index = int(event.mimeData().text())
+                except ValueError:
+                    source_index = -1
+
+                _, self.drop_indicator_rect = self._calculate_drop_target(event.position().toPoint(), source_index)
+                self.update()
+                event.accept()
+            else:
+                event.ignore()
+        elif self.mode == 'docs':
+             if event.mimeData().hasFormat("application/x-unimed-doc-index"):
+                self.drop_indicator_rect = QRect() # Clear for docs for now
+                self.update()
+                event.accept()
+             else:
+                event.ignore()
+
+    def dragLeaveEvent(self, event):
+        self.drop_indicator_rect = QRect()
+        self.update()
+        super().dragLeaveEvent(event)
+
     def dropEvent(self, event):
+        self.drop_indicator_rect = QRect()
+        self.update()
+
         if event.mimeData().hasUrls():
             self.handle_file_drop(event)
         elif self.mode == 'pages':
             self.handle_page_drop(event)
         elif self.mode == 'docs':
             self.handle_doc_drop(event)
+
+    def _calculate_drop_target(self, pos, source_index=-1):
+        if not self.thumbnails_ref:
+            return -1, QRect()
+
+        closest_thumb = None
+        min_dist = float('inf')
+
+        for thumb in self.thumbnails_ref:
+            center = thumb.geometry().center()
+            dist = (pos - center).manhattanLength()
+            if dist < min_dist:
+                min_dist = dist
+                closest_thumb = thumb
+
+        if closest_thumb:
+            if closest_thumb.index == source_index:
+                 return source_index, QRect() # No visual feedback if over self
+
+            geo = closest_thumb.geometry()
+            insert_after = pos.x() > geo.center().x()
+
+            if insert_after:
+                target_index = closest_thumb.index + 1
+                indicator_rect = QRect(geo.right(), geo.top(), 2, geo.height())
+            else:
+                target_index = closest_thumb.index
+                indicator_rect = QRect(geo.left() - 2, geo.top(), 2, geo.height())
+
+            return target_index, indicator_rect
+
+        return -1, QRect()
 
     def handle_file_drop(self, event):
         files = []
@@ -184,17 +256,7 @@ class ContainerWidget(QWidget):
             return
 
         drop_pos = event.position().toPoint()
-        container_pos = drop_pos
-
-        target_index = -1
-        min_dist = float('inf')
-
-        for thumb in self.thumbnails_ref:
-            center = thumb.geometry().center()
-            dist = (container_pos - center).manhattanLength()
-            if dist < min_dist:
-                min_dist = dist
-                target_index = thumb.index
+        target_index, _ = self._calculate_drop_target(drop_pos, source_index)
 
         if target_index != -1 and target_index != source_index:
             self.page_order_changed.emit(source_index, target_index)
