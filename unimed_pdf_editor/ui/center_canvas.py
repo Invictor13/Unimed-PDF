@@ -507,44 +507,11 @@ class CenterCanvas(QWidget):
             self._render_docs_view(layout)
 
     def _render_pages_view(self, count, layout):
-        columns = 3
-        current_file_id = None
+        columns = 4
         row = 0
         col = 0
 
         for i in range(count):
-            page_info = self.main_window.pdf_manager.get_page_info(i)
-            file_id = page_info['file_id']
-            file_name = page_info['file_name']
-
-            if file_id != current_file_id:
-                if col > 0:
-                    row += 1
-                    col = 0
-
-                # Header Separator
-                header_frame = QFrame()
-                header_frame.setStyleSheet("background-color: transparent; margin-top: 10px;")
-                header_layout = QHBoxLayout(header_frame)
-                header_layout.setContentsMargins(0, 0, 0, 0)
-
-                header_label = QLabel(f"{file_name}")
-                header_label.setStyleSheet("""
-                    background-color: white;
-                    color: #009A3E;
-                    font-weight: bold;
-                    padding: 8px 15px;
-                    border-left: 5px solid #009A3E;
-                    border-radius: 4px;
-                    font-size: 14px;
-                """)
-                header_layout.addWidget(header_label)
-                header_layout.addStretch()
-
-                layout.addWidget(header_frame, row, 0, 1, columns)
-                row += 1
-                current_file_id = file_id
-
             img_data = self.main_window.pdf_manager.get_thumbnail(i)
             thumb = Thumbnail(i, img_data)
             thumb.clicked.connect(self.on_thumbnail_clicked)
@@ -646,8 +613,12 @@ class CenterCanvas(QWidget):
         modifiers = QApplication.keyboardModifiers()
         # Find indices in rect
         in_rect_indices = set()
+
+        # Refined Lasso Selection Logic: Check intersection with thumbnail geometry
         for thumb in self.thumbnails:
-            if rect.intersects(thumb.geometry()):
+            # Ensure we are checking against the correct coordinate system (ContainerWidget)
+            thumb_rect = thumb.geometry()
+            if rect.intersects(thumb_rect):
                 in_rect_indices.add(thumb.index)
 
         # Combine with snapshot

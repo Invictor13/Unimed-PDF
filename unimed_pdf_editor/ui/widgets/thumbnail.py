@@ -19,7 +19,7 @@ class Thumbnail(QWidget):
         self.image_label = QLabel()
         self.image_label.setObjectName("ThumbnailLabel")
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_label.setFixedSize(180, 240) # Fixed thumbnail size
+        self.image_label.setFixedSize(200, 260) # Fixed thumbnail size
 
         # Load image
         if isinstance(image_data, dict) and 'samples' in image_data:
@@ -38,7 +38,7 @@ class Thumbnail(QWidget):
 
         pixmap = QPixmap.fromImage(image)
         # Scale to fit label
-        pixmap = pixmap.scaled(170, 230, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        pixmap = pixmap.scaled(190, 250, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
         self.image_label.setPixmap(pixmap)
 
         layout.addWidget(self.image_label)
