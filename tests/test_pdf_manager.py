@@ -82,8 +82,9 @@ class TestPDFManager(unittest.TestCase):
         # Remaining page should be original page 2
         # Original page 2 was index 1 (0-based) in doc, index 1 in page_order.
         # Now it is index 0 in page_order.
+        # Since we physically deleted page 0, the remaining page (was 1) is now at index 0 in physical doc.
         page_info = self.manager.get_page_info(0)
-        self.assertEqual(page_info['original_index'], 1)
+        self.assertEqual(page_info['original_index'], 0)
 
     def test_compress_quality(self):
         # Verify checking code in compress_pdf

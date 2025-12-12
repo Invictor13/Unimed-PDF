@@ -218,8 +218,15 @@ class MainWindow(QMainWindow):
         if not filepaths:
             return
 
-        count = self.pdf_manager.load_pdf(filepaths[0])
-        self.center_canvas.refresh_thumbnails()
+        self.show_loading(f"Carregando {len(filepaths)} arquivo(s)...")
+
+        def task():
+            self.pdf_manager.load_pdf(filepaths)
+
+        def success(_):
+            self.center_canvas.refresh_thumbnails()
+
+        self.execute_task(task, success_callback=success)
 
     def handle_page_selection(self, selected_indices):
         self.left_panel.update_selection_input(selected_indices)
