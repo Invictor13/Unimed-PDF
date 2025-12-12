@@ -449,7 +449,18 @@ class CenterCanvas(QWidget):
         if self.view_mode != 'pages': return
 
         img_data = self.main_window.pdf_manager.get_thumbnail(index, scale=0.8)
-        image = QImage.fromData(img_data)
+
+        if isinstance(img_data, dict) and 'samples' in img_data:
+            image = QImage(
+                img_data['samples'],
+                img_data['width'],
+                img_data['height'],
+                img_data['stride'],
+                QImage.Format.Format_RGB888
+            )
+        else:
+            image = QImage.fromData(img_data)
+
         pixmap = QPixmap.fromImage(image)
         if pixmap.height() > 300:
             pixmap = pixmap.scaledToHeight(300, Qt.TransformationMode.SmoothTransformation)
