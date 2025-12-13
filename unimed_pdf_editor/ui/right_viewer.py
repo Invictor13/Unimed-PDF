@@ -50,6 +50,7 @@ class RightViewer(QWidget):
         # Page Info
         self.lbl_page_info = QLabel("Nenhuma página selecionada")
         self.lbl_page_info.setStyleSheet("font-weight: bold; color: #333333;")
+        self.lbl_page_info.setAccessibleName("Informação da página atual")
         footer_layout.addWidget(self.lbl_page_info)
 
         # Navigation Buttons (Setas para navegação rápida)
@@ -68,6 +69,7 @@ class RightViewer(QWidget):
         self.lbl_zoom.setFixedWidth(50)
         self.lbl_zoom.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_zoom.setStyleSheet("color: #333333; font-weight: bold;")
+        self.lbl_zoom.setAccessibleName("Nível de Zoom")
 
         footer_layout.addWidget(btn_zoom_out)
         footer_layout.addWidget(self.lbl_zoom)
@@ -103,6 +105,7 @@ class RightViewer(QWidget):
         btn = QPushButton(icon_text)
         btn.setFixedSize(40, 30)
         btn.setToolTip(tooltip)
+        btn.setAccessibleName(tooltip)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         # CORRIGIDO: Cor do texto (ícone) para Verde Unimed (#009A3E)
         # Uso de estilo explícito para garantir contraste contra o fundo cinza
@@ -125,6 +128,7 @@ class RightViewer(QWidget):
     def create_action_button(self, text, tooltip, slot):
         btn = QPushButton(text)
         btn.setToolTip(tooltip)
+        btn.setAccessibleName(tooltip)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.clicked.connect(slot)
         # TASK 1.1: Forçar cor do texto para PRETO para contraste no rodapé cinza.
@@ -162,8 +166,9 @@ class RightViewer(QWidget):
     def clear(self):
         # Implementação do Empty State
         self.image_label.clear()
-        self.image_label.setText("Clique em uma página para prévia")
+        self.image_label.setText("👁️\n\nSelecione uma página\npara visualizar detalhes")
         self.image_label.setStyleSheet("font-size: 18px; color: #999999; font-weight: bold;")
+        self.image_label.setWordWrap(True)
 
         self.lbl_page_info.setText("Nenhuma página selecionada")
         self.current_page_index = None

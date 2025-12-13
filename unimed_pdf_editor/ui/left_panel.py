@@ -19,6 +19,7 @@ class LeftPanel(QFrame):
 
         btn = QPushButton(text)
         btn.setToolTip(tooltip)
+        btn.setAccessibleName(tooltip)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
         if connect_default:
@@ -109,6 +110,7 @@ class LeftPanel(QFrame):
 
         self.input_selection = QLineEdit()
         self.input_selection.setPlaceholderText("Ex: 1, 3-5")
+        self.input_selection.setAccessibleName("Seleção de páginas por intervalo")
         self.input_selection.textChanged.connect(self.on_range_input_changed)
         layout.addWidget(self.input_selection)
 
