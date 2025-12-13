@@ -537,14 +537,33 @@ class CenterCanvas(QWidget):
         self.loading_queue = []
 
         layout = self.container.layout()
+        count = self.main_window.pdf_manager.get_page_count()
+
+        # Check if we can recycle widgets (optimization for Zoom)
+        can_recycle = (
+            self.view_mode == 'pages' and
+            len(self.thumbnails) == count and
+            layout is not None and
+            layout.count() >= count  # Layout might contain spacers or empty state
+        )
+
+        # If we have an EmptyState but now have pages, we can't recycle efficiently
+        # Or if we had pages and now have 0.
+        if count == 0 and len(self.thumbnails) > 0:
+             can_recycle = False
+        if count > 0 and len(self.thumbnails) == 0:
+             can_recycle = False
+
+        if can_recycle:
+            self._recycle_pages_grid(count, layout)
+            return
+
         if layout:
             self._clear_layout(layout)
 
         self.thumbnails = []
         self.doc_cards = []
         self.selected_indices.clear()
-
-        count = self.main_window.pdf_manager.get_page_count()
 
         if count == 0:
             empty_state = EmptyState()
@@ -558,22 +577,36 @@ class CenterCanvas(QWidget):
         else:
             self._render_docs_view(layout)
 
+    def _recycle_pages_grid(self, count, layout):
+        scale_factor = (self.zoom_level / 50.0)
+        base_w, base_h = 220, 280
+        scaled_w = int(base_w * scale_factor)
+        scaled_h = int(base_h * scale_factor)
+
+        row = 0
+        col = 0
+        columns = self.current_columns
+
+        # Iterate over existing thumbnails
+        for thumb in self.thumbnails:
+            thumb.setFixedSize(scaled_w, scaled_h)
+
+            # Re-position in Grid
+            # addWidget moves the widget if it's already in the layout
+            layout.addWidget(thumb, row, col)
+
+            # Add to loading queue to update image resolution if needed
+            self.loading_queue.append(thumb)
+
+            col += 1
+            if col >= columns:
+                col = 0
+                row += 1
+
+        # Start Lazy Loading to refresh resolution
+        self.loading_timer.start()
+
     def _setup_pages_grid(self, count, layout):
-        # Scale thumbnails based on columns
-        # Screen Width?
-        # Fixed logic for now: Columns determines placement.
-        # Thumbnail widget handles its own internal scaling (Card Size)
-        # But we should probably scale the widget size if zoom is huge.
-        # For now, keeping widget size fixed (220x280) but changing grid density.
-
-        # User requirement: "Change thumbnail size in real time".
-        # Currently Thumbnail is FixedSize 220x280.
-        # We need to make Thumbnail scalable.
-
-        # Update: In `Thumbnail` I set fixed size. I should probably remove fixed size there
-        # or update it here.
-
-        # Let's adjust scale factor.
         scale_factor = (self.zoom_level / 50.0) # 0.2 to 2.0
         base_w, base_h = 220, 280
         scaled_w = int(base_w * scale_factor)
@@ -584,8 +617,6 @@ class CenterCanvas(QWidget):
         columns = self.current_columns
 
         for i in range(count):
-            # Create Thumbnail with None data (Placeholder)
-            # Pass size hint?
             thumb = Thumbnail(i, None)
             thumb.setFixedSize(scaled_w, scaled_h)
 
